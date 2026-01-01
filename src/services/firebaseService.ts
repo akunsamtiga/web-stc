@@ -226,4 +226,62 @@ export const firebaseService = {
     
     return csv;
   },
+
+  // ========== IMPORT ==========
+  async bulkImportWhitelistUsers(
+    users: Array<{
+      name: string;
+      email: string;
+      userId: string;
+      deviceId: string;
+      isActive?: boolean;
+    }>,
+    addedBy: string
+  ): Promise<{ success: number; failed: number; errors: string[] }> {
+    const usersRef = collection(db, 'whitelist_users');
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const user of users) {
+      try {
+        // Validate required fields
+        if (!user.name || !user.email || !user.userId || !user.deviceId) {
+          throw new Error(`Missing required fields for user: ${user.email || 'unknown'}`);
+        }
+
+        // Check if user already exists
+        const existingQuery = query(
+          usersRef,
+          where('userId', '==', user.userId)
+        );
+        const existingSnapshot = await getDocs(existingQuery);
+        
+        if (!existingSnapshot.empty) {
+          throw new Error(`User with ID ${user.userId} already exists`);
+        }
+
+        // Add user
+        const newUser: Omit<WhitelistUser, 'id'> = {
+          name: user.name,
+          email: user.email,
+          userId: user.userId,
+          deviceId: user.deviceId,
+          isActive: user.isActive !== undefined ? user.isActive : true,
+          createdAt: Date.now(),
+          addedAt: Date.now(),
+          addedBy,
+          lastLogin: 0,
+        };
+        
+        await addDoc(usersRef, newUser);
+        success++;
+      } catch (error: any) {
+        failed++;
+        errors.push(error.message || 'Unknown error');
+      }
+    }
+
+    return { success, failed, errors };
+  },
 };
