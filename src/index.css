@@ -6,65 +6,64 @@
   * {
     @apply border-slate-700;
   }
+  
   body {
-    @apply bg-dark-bg text-slate-100 antialiased;
+    @apply bg-slate-50 text-slate-900 antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Smooth scrolling */
   html {
     scroll-behavior: smooth;
   }
 
   /* Custom scrollbar */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-dark-bg;
+    @apply bg-transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-700 rounded-full hover:bg-slate-600;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-600;
+    @apply bg-slate-300 rounded-full hover:bg-slate-400;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-gradient-to-r from-accent-primary to-accent-secondary hover:from-accent-secondary hover:to-accent-primary 
-           text-white font-semibold py-2 px-4 rounded-xl transition-all duration-300 
-           shadow-lg hover:shadow-xl active:scale-95;
+    @apply bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800
+           text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-300 
+           shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
   }
   
   .btn-secondary {
-    @apply bg-dark-hover hover:bg-dark-card text-slate-300 hover:text-white font-semibold py-2 px-4 
-           rounded-xl transition-all duration-200 border border-slate-700 hover:border-slate-600 
-           active:scale-95;
+    @apply bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 
+           font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 
+           border border-slate-200 hover:border-slate-300 shadow-sm
+           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
   }
   
   .card {
-    @apply bg-dark-card rounded-2xl p-6 shadow-xl border border-slate-800 
-           transition-all duration-300 hover:shadow-2xl;
+    @apply bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200
+           transition-all duration-300 hover:shadow-md;
   }
   
   .input {
-    @apply w-full bg-dark-hover border border-slate-700 rounded-xl px-4 py-2.5 
-           text-slate-100 placeholder-slate-500 
-           focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 
+    @apply w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 
+           text-slate-900 placeholder-slate-400 
+           focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 
            outline-none transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed;
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50;
   }
 }
 
 @layer utilities {
   /* Animation utilities */
   .animate-fade-in {
-    animation: fadeIn 0.5s ease-in-out;
+    animation: fadeIn 0.4s ease-out;
   }
 
   .animate-scale-in {
@@ -75,48 +74,18 @@
     animation: slideUp 0.4s ease-out;
   }
 
-  .animate-slide-down {
-    animation: slideDown 0.4s ease-out;
-  }
-
-  .delay-100 {
-    animation-delay: 100ms;
-  }
-
-  .delay-200 {
-    animation-delay: 200ms;
-  }
-
-  .delay-300 {
-    animation-delay: 300ms;
-  }
-
-  /* Glassmorphism */
-  .glass {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10;
-  }
-
-  .glass-dark {
-    @apply bg-black/20 backdrop-blur-xl border border-white/5;
-  }
-
-  /* Gradient text */
-  .gradient-text {
-    @apply bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent;
-  }
-
-  /* Hover glow effect */
-  .hover-glow {
-    @apply transition-all duration-300;
-  }
-
-  .hover-glow:hover {
-    filter: drop-shadow(0 0 20px currentColor);
-  }
-
   /* Smooth transitions */
   .transition-smooth {
     @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* Safe area for mobile devices */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 
@@ -124,7 +93,7 @@
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -135,7 +104,7 @@
 @keyframes scaleIn {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.96);
   }
   to {
     opacity: 1;
@@ -146,7 +115,7 @@
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -154,81 +123,39 @@
   }
 }
 
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-/* Loading spinner */
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Shimmer effect for loading states */
-@keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
-  }
-}
-
-.shimmer {
-  animation: shimmer 2s infinite linear;
-  background: linear-gradient(
-    to right,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  background-size: 1000px 100%;
-}
-
-/* Table hover effects */
+/* Table hover effects - smooth and subtle */
 table tbody tr {
-  @apply transition-all duration-200;
+  @apply transition-colors duration-200;
 }
 
 table tbody tr:hover {
-  @apply bg-dark-hover/50;
+  @apply bg-slate-50;
 }
 
 /* Focus visible for accessibility */
 *:focus-visible {
-  @apply outline-none ring-2 ring-accent-primary ring-offset-2 ring-offset-dark-bg;
+  @apply outline-none ring-2 ring-blue-500 ring-offset-2 ring-offset-white;
 }
 
 /* Selection */
 ::selection {
-  @apply bg-accent-primary/30 text-white;
+  @apply bg-blue-100 text-blue-900;
 }
 
-/* Mobile responsive improvements */
+/* Mobile optimizations */
 @media (max-width: 640px) {
   .card {
-    @apply p-4;
+    @apply p-4 rounded-xl;
   }
 
   .input {
     @apply text-base; /* Prevents zoom on iOS */
+  }
+
+  /* Better touch targets on mobile */
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
   }
 }
 
@@ -242,7 +169,12 @@ table tbody tr:hover {
     @apply border border-gray-300 shadow-none;
   }
 
-  nav, .btn-primary, .btn-secondary {
+  nav, button, .btn-primary, .btn-secondary {
     @apply hidden;
   }
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+  /* Keep light theme regardless of system preference for now */
 }

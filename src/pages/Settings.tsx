@@ -53,7 +53,7 @@ export const Settings: React.FC = () => {
     setSaving(true);
     try {
       await firebaseService.updateRegistrationConfig(formData);
-      toast.success('Settings updated successfully');
+      toast.success('Settings updated');
       loadConfig();
     } catch (error) {
       toast.error('Failed to update settings');
@@ -74,30 +74,28 @@ export const Settings: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-accent-primary/30 rounded-full animate-spin border-t-accent-primary"></div>
-        </div>
+        <div className="w-12 h-12 border-3 border-blue-200 rounded-full animate-spin border-t-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-3xl">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">Settings</h1>
-        <p className="text-slate-400">Manage application configuration and links</p>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">Settings</h1>
+        <p className="text-slate-600">Manage application configuration</p>
       </div>
 
-      {/* Super Admin Warning */}
+      {/* Warning */}
       {!isSuperAdmin && (
-        <div className="card backdrop-blur-sm bg-yellow-500/10 border-yellow-500/30 shadow-xl">
+        <div className="card bg-yellow-50 border-yellow-200">
           <div className="flex items-start gap-3">
-            <AlertCircle className="text-yellow-500 flex-shrink-0 mt-1" size={24} />
+            <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
             <div>
-              <h3 className="font-bold text-yellow-500 mb-1">Read-Only Mode</h3>
-              <p className="text-sm text-yellow-500/80">
-                Only super administrators can modify these settings. You can view but not edit.
+              <h3 className="font-bold text-yellow-900 mb-1">Read-Only Mode</h3>
+              <p className="text-sm text-yellow-800">
+                Only super administrators can modify these settings.
               </p>
             </div>
           </div>
@@ -105,32 +103,28 @@ export const Settings: React.FC = () => {
       )}
 
       {/* Registration URL */}
-      <div className="card backdrop-blur-sm bg-dark-card/50 border-slate-800/50 shadow-xl">
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
-          <div className="relative">
-            <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-lg"></div>
-            <div className="relative w-12 h-12 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl flex items-center justify-center border border-blue-500/30">
-              <Link className="text-blue-500" size={24} />
-            </div>
+      <div className="card">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+            <Link className="text-blue-600" size={20} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">Registration URL</h2>
-            <p className="text-sm text-slate-400">Default registration link for new users</p>
+            <h2 className="text-lg font-bold text-slate-900">Registration URL</h2>
+            <p className="text-sm text-slate-600">Default link for new users</p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-slate-300">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
               Registration Link
             </label>
-            <div className="relative group">
-              <Link className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent-primary transition-colors z-10" size={18} />
+            <div className="relative">
               <input
                 type="url"
                 value={formData.registrationUrl}
                 onChange={(e) => setFormData({ ...formData, registrationUrl: e.target.value })}
-                className="input pl-12 pr-12 h-14 bg-dark-hover/50 border-slate-700 focus:border-accent-primary transition-all"
+                className="input pr-10"
                 placeholder="https://stockity.id/registered?a=..."
                 disabled={!isSuperAdmin}
               />
@@ -139,7 +133,7 @@ export const Settings: React.FC = () => {
                   href={formData.registrationUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-accent-primary transition-colors z-10"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors"
                 >
                   <ExternalLink size={18} />
                 </a>
@@ -147,14 +141,13 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {/* Current URL Display */}
           {config && (
-            <div className="p-4 bg-dark-hover/30 rounded-xl border border-slate-800/50">
+            <div className="p-3 bg-green-50 rounded-xl border border-green-200">
               <div className="flex items-start gap-2">
-                <CheckCircle className="text-green-500 flex-shrink-0 mt-0.5" size={16} />
+                <CheckCircle className="text-green-600 flex-shrink-0 mt-0.5" size={16} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-400 mb-1">Current Active URL:</p>
-                  <p className="text-sm text-slate-300 break-all">{config.registrationUrl}</p>
+                  <p className="text-xs font-semibold text-green-800 mb-1">Current Active URL:</p>
+                  <p className="text-sm text-green-700 break-all">{config.registrationUrl}</p>
                 </div>
               </div>
             </div>
@@ -162,33 +155,29 @@ export const Settings: React.FC = () => {
         </div>
       </div>
 
-      {/* WhatsApp Help URL */}
-      <div className="card backdrop-blur-sm bg-dark-card/50 border-slate-800/50 shadow-xl">
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
-          <div className="relative">
-            <div className="absolute inset-0 bg-green-500/20 rounded-xl blur-lg"></div>
-            <div className="relative w-12 h-12 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-xl flex items-center justify-center border border-green-500/30">
-              <MessageCircle className="text-green-500" size={24} />
-            </div>
+      {/* WhatsApp URL */}
+      <div className="card">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+            <MessageCircle className="text-green-600" size={20} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">WhatsApp Support</h2>
-            <p className="text-sm text-slate-400">Contact link for user support</p>
+            <h2 className="text-lg font-bold text-slate-900">WhatsApp Support</h2>
+            <p className="text-sm text-slate-600">Contact link for support</p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-slate-300">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
               WhatsApp Link
             </label>
-            <div className="relative group">
-              <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent-primary transition-colors z-10" size={18} />
+            <div className="relative">
               <input
                 type="url"
                 value={formData.whatsappHelpUrl}
                 onChange={(e) => setFormData({ ...formData, whatsappHelpUrl: e.target.value })}
-                className="input pl-12 pr-12 h-14 bg-dark-hover/50 border-slate-700 focus:border-accent-primary transition-all"
+                className="input pr-10"
                 placeholder="https://wa.me/..."
                 disabled={!isSuperAdmin}
               />
@@ -197,7 +186,7 @@ export const Settings: React.FC = () => {
                   href={formData.whatsappHelpUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-accent-primary transition-colors z-10"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-green-600 transition-colors"
                 >
                   <ExternalLink size={18} />
                 </a>
@@ -205,14 +194,13 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {/* Current URL Display */}
           {config && (
-            <div className="p-4 bg-dark-hover/30 rounded-xl border border-slate-800/50">
+            <div className="p-3 bg-green-50 rounded-xl border border-green-200">
               <div className="flex items-start gap-2">
-                <CheckCircle className="text-green-500 flex-shrink-0 mt-0.5" size={16} />
+                <CheckCircle className="text-green-600 flex-shrink-0 mt-0.5" size={16} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-400 mb-1">Current Active URL:</p>
-                  <p className="text-sm text-slate-300 break-all">{config.whatsappHelpUrl}</p>
+                  <p className="text-xs font-semibold text-green-800 mb-1">Current Active URL:</p>
+                  <p className="text-sm text-green-700 break-all">{config.whatsappHelpUrl}</p>
                 </div>
               </div>
             </div>
@@ -226,23 +214,23 @@ export const Settings: React.FC = () => {
           <button
             onClick={handleReset}
             disabled={!hasChanges || saving}
-            className="flex-1 sm:flex-none btn-secondary px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-secondary disabled:opacity-50"
           >
             Reset Changes
           </button>
           <button
             onClick={handleSave}
             disabled={!hasChanges || saving}
-            className="flex-1 sm:flex-none btn-primary px-8 py-3 flex items-center justify-center gap-2 shadow-xl shadow-accent-primary/25 hover:shadow-2xl hover:shadow-accent-primary/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {saving ? (
               <>
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 <span>Saving...</span>
               </>
             ) : (
               <>
-                <Save size={20} />
+                <Save size={18} />
                 <span>Save Changes</span>
               </>
             )}
@@ -250,17 +238,16 @@ export const Settings: React.FC = () => {
         </div>
       )}
 
-      {/* Info Card */}
-      <div className="card backdrop-blur-sm bg-blue-500/5 border-blue-500/20 shadow-xl">
+      {/* Info */}
+      <div className="card bg-blue-50 border-blue-200">
         <div className="flex items-start gap-3">
-          <AlertCircle className="text-blue-500 flex-shrink-0 mt-1" size={20} />
-          <div className="text-sm text-slate-300 space-y-2">
-            <p className="font-semibold text-blue-400">Important Information:</p>
-            <ul className="list-disc list-inside space-y-1 text-slate-400">
-              <li>Changes take effect immediately after saving</li>
-              <li>These URLs are used throughout the application</li>
-              <li>Ensure URLs are valid and accessible before saving</li>
-              <li>Test links using the external link icon before saving</li>
+          <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
+          <div className="text-sm text-slate-700 space-y-2">
+            <p className="font-semibold text-blue-900">Important:</p>
+            <ul className="list-disc list-inside space-y-1 text-slate-600">
+              <li>Changes take effect immediately</li>
+              <li>Ensure URLs are valid before saving</li>
+              <li>Test links using the external icon</li>
             </ul>
           </div>
         </div>

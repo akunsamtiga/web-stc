@@ -7,31 +7,40 @@ export default {
   theme: {
     extend: {
       colors: {
-        dark: {
-          bg: '#0B1A14',
-          card: '#15241C',
-          hover: '#1A2A21',
+        primary: {
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a',
         },
-        accent: {
-          primary: '#4ECDC4',
-          secondary: '#26A69A',
-        },
+      },
+      fontFamily: {
+        sans: [
+          'Inter',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'sans-serif',
+        ],
+      },
+      boxShadow: {
+        'soft': '0 2px 8px rgba(0, 0, 0, 0.04)',
+        'soft-lg': '0 4px 16px rgba(0, 0, 0, 0.06)',
+      },
+      animation: {
+        'fade-in': 'fadeIn 0.4s ease-out',
+        'scale-in': 'scaleIn 0.3s ease-out',
+        'slide-up': 'slideUp 0.4s ease-out',
       },
     },
   },
   plugins: [],
-  safelist: [
-    'text-blue-500',
-    'text-green-500',
-    'text-red-500',
-    'text-yellow-500',
-    'bg-blue-500/20',
-    'bg-green-500/20',
-    'bg-red-500/20',
-    'bg-yellow-500/20',
-    'hover:border-blue-500/50',
-    'hover:border-green-500/50',
-    'hover:border-red-500/50',
-    'hover:border-yellow-500/50',
-  ],
 }

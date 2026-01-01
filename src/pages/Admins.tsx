@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { firebaseService } from '../services/firebaseService';
 import type { AdminUser } from '../types';
-import { Plus, Edit, Trash2, Shield, UserCog, Mail, Hash, User as UserIcon, Save, X, AlertCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Shield, UserCog, Mail, User as UserIcon, Save, X, AlertCircle, Hash } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -34,11 +34,11 @@ export const Admins: React.FC = () => {
       return;
     }
     
-    if (!confirm('Are you sure you want to delete this admin? This action cannot be undone.')) return;
+    if (!confirm('Delete this admin? This cannot be undone.')) return;
     
     try {
       await firebaseService.deleteAdminUser(adminId);
-      toast.success('Admin deleted successfully');
+      toast.success('Admin deleted');
       loadAdmins();
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete admin');
@@ -48,42 +48,38 @@ export const Admins: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-accent-primary/30 rounded-full animate-spin border-t-accent-primary"></div>
-        </div>
+        <div className="w-12 h-12 border-3 border-blue-200 rounded-full animate-spin border-t-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">Admin Management</h1>
-          <p className="text-slate-400">
-            <span className="text-accent-primary font-semibold">{admins.length}</span> administrators
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">Admins</h1>
+          <p className="text-slate-600">{admins.length} administrators</p>
         </div>
         {isSuperAdmin && (
           <button 
             onClick={() => setShowAddModal(true)} 
-            className="btn-primary flex items-center justify-center gap-2 px-6 py-3 shadow-xl shadow-accent-primary/25 hover:shadow-2xl hover:shadow-accent-primary/30 hover:scale-105 transition-all"
+            className="btn-primary flex items-center gap-2 text-sm w-full sm:w-auto justify-center"
           >
-            <Plus size={20} />
-            <span className="font-semibold">Add Admin</span>
+            <Plus size={18} />
+            <span>Add Admin</span>
           </button>
         )}
       </div>
 
-      {/* Super Admin Only Notice */}
+      {/* Warning for non-super admin */}
       {!isSuperAdmin && (
-        <div className="card backdrop-blur-sm bg-yellow-500/10 border-yellow-500/30 shadow-xl">
+        <div className="card bg-yellow-50 border-yellow-200">
           <div className="flex items-start gap-3">
-            <AlertCircle className="text-yellow-500 flex-shrink-0 mt-1" size={24} />
+            <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
             <div>
-              <h3 className="font-bold text-yellow-500 mb-1">View-Only Access</h3>
-              <p className="text-sm text-yellow-500/80">
+              <h3 className="font-bold text-yellow-900 mb-1">View Only</h3>
+              <p className="text-sm text-yellow-800">
                 Only super administrators can add, edit, or remove admin accounts.
               </p>
             </div>
@@ -92,53 +88,27 @@ export const Admins: React.FC = () => {
       )}
 
       {/* Admins Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {admins.map((admin, index) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {admins.map((admin) => {
           const isSuperAdminUser = admin.role === 'super_admin';
           const isCurrentUser = admin.email === user?.email;
           
           return (
-            <div 
-              key={admin.id} 
-              className="card backdrop-blur-sm bg-dark-card/50 border-slate-800/50 hover:border-slate-700 shadow-xl hover:shadow-2xl transition-all group"
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
+            <div key={admin.id} className="card hover:shadow-md transition-shadow">
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
-                <div className="relative">
-                  <div className={`absolute inset-0 ${
-                    isSuperAdminUser ? 'bg-yellow-500/20' : 'bg-blue-500/20'
-                  } rounded-2xl blur-lg opacity-50 group-hover:opacity-100 transition-opacity`}></div>
-                  <div className={`relative w-14 h-14 rounded-2xl ${
-                    isSuperAdminUser ? 'bg-yellow-500/20 border border-yellow-500/30' : 'bg-blue-500/20 border border-blue-500/30'
-                  } flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-6`}>
-                    {isSuperAdminUser ? (
-                      <Shield className="text-yellow-500" size={28} strokeWidth={2.5} />
-                    ) : (
-                      <UserCog className="text-blue-500" size={28} strokeWidth={2.5} />
-                    )}
-                  </div>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  isSuperAdminUser ? 'bg-yellow-100' : 'bg-blue-100'
+                }`}>
+                  {isSuperAdminUser ? (
+                    <Shield className="text-yellow-600" size={24} />
+                  ) : (
+                    <UserCog className="text-blue-600" size={24} />
+                  )}
                 </div>
                 
-                {isSuperAdmin && !isCurrentUser && (
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => setEditingAdmin(admin)}
-                      className="p-2 hover:bg-blue-500/10 text-blue-500 rounded-lg transition-all hover:scale-110"
-                    >
-                      <Edit size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(admin.id)}
-                      className="p-2 hover:bg-red-500/10 text-red-500 rounded-lg transition-all hover:scale-110"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                )}
-                
                 {isCurrentUser && (
-                  <span className="px-3 py-1 bg-accent-primary/20 text-accent-primary text-xs font-semibold rounded-lg border border-accent-primary/30">
+                  <span className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg">
                     You
                   </span>
                 )}
@@ -147,39 +117,29 @@ export const Admins: React.FC = () => {
               {/* Info */}
               <div className="space-y-3 mb-4">
                 <div>
-                  <h3 className="text-lg font-bold text-white mb-1">{admin.name}</h3>
-                  <p className="text-sm text-slate-400 break-all">{admin.email}</p>
+                  <h3 className="text-lg font-bold text-slate-900 mb-1">{admin.name}</h3>
+                  <p className="text-sm text-slate-600 break-all">{admin.email}</p>
                 </div>
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 bg-dark-hover/30 rounded-lg">
+                  <div className="p-3 bg-slate-50 rounded-xl">
                     <p className="text-xs text-slate-500 mb-1">Role</p>
                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold ${
                       isSuperAdminUser
-                        ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30'
-                        : 'bg-blue-500/20 text-blue-500 border border-blue-500/30'
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-blue-100 text-blue-700'
                     }`}>
-                      {isSuperAdminUser ? (
-                        <>
-                          <Shield size={12} />
-                          <span>Super</span>
-                        </>
-                      ) : (
-                        <>
-                          <UserCog size={12} />
-                          <span>Admin</span>
-                        </>
-                      )}
+                      {isSuperAdminUser ? 'Super' : 'Admin'}
                     </span>
                   </div>
 
-                  <div className="p-3 bg-dark-hover/30 rounded-lg">
+                  <div className="p-3 bg-slate-50 rounded-xl">
                     <p className="text-xs text-slate-500 mb-1">Status</p>
                     <span className={`inline-block px-2 py-1 rounded-lg text-xs font-bold ${
                       admin.isActive
-                        ? 'bg-green-500/20 text-green-500 border border-green-500/30'
-                        : 'bg-red-500/20 text-red-500 border border-red-500/30'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-slate-200 text-slate-600'
                     }`}>
                       {admin.isActive ? 'Active' : 'Inactive'}
                     </span>
@@ -187,17 +147,15 @@ export const Admins: React.FC = () => {
                 </div>
               </div>
 
-              {/* Footer Info */}
-              <div className="pt-4 border-t border-slate-800/50 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Created</span>
-                  <span className="text-slate-400 font-medium">
-                    {format(new Date(admin.createdAt), 'MMM dd, yyyy')}
-                  </span>
+              {/* Footer */}
+              <div className="pt-4 border-t border-slate-200 space-y-2 text-xs text-slate-600">
+                <div className="flex justify-between">
+                  <span>Created</span>
+                  <span className="font-medium">{format(new Date(admin.createdAt), 'MMM dd, yyyy')}</span>
                 </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Last Login</span>
-                  <span className="text-slate-400 font-medium">
+                <div className="flex justify-between">
+                  <span>Last Login</span>
+                  <span className="font-medium">
                     {admin.lastLogin > 0 
                       ? format(new Date(admin.lastLogin), 'MMM dd, HH:mm')
                       : 'Never'
@@ -205,15 +163,33 @@ export const Admins: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              {/* Actions */}
+              {isSuperAdmin && !isCurrentUser && (
+                <div className="flex gap-2 mt-4 pt-4 border-t border-slate-200">
+                  <button
+                    onClick={() => setEditingAdmin(admin)}
+                    className="flex-1 btn-secondary text-sm h-9"
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(admin.id)}
+                    className="px-3 h-9 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
       {admins.length === 0 && (
-        <div className="card backdrop-blur-sm bg-dark-card/50 border-slate-800/50 shadow-xl text-center py-16">
-          <UserCog size={64} className="mx-auto text-slate-700 mb-4" />
-          <p className="text-slate-400 text-lg">No administrators found</p>
+        <div className="card text-center py-16">
+          <UserCog size={48} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-slate-500">No administrators found</p>
         </div>
       )}
 
@@ -255,10 +231,10 @@ const AdminModal: React.FC<{
     try {
       if (admin) {
         await firebaseService.updateAdminUser(admin.id, formData);
-        toast.success('Admin updated successfully');
+        toast.success('Admin updated');
       } else {
         await firebaseService.addAdminUser(formData as any, currentUserEmail);
-        toast.success('Admin added successfully');
+        toast.success('Admin added');
       }
       onSave();
       onClose();
@@ -270,105 +246,84 @@ const AdminModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="card max-w-md w-full backdrop-blur-xl bg-dark-card/90 border-slate-800/50 shadow-2xl animate-scale-in">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 rounded-xl flex items-center justify-center">
-              <UserCog className="text-accent-primary" size={20} />
-            </div>
-            <h2 className="text-2xl font-bold text-white">
-              {admin ? 'Edit Admin' : 'Add New Admin'}
-            </h2>
-          </div>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="card max-w-lg w-full animate-scale-in max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-slate-900">
+            {admin ? 'Edit Admin' : 'Add Admin'}
+          </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-dark-hover rounded-lg transition-colors text-slate-400 hover:text-white"
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name Field */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-slate-300">Full Name</label>
-            <div className="relative group">
-              <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent-primary transition-colors" size={18} />
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="input pl-11 h-12 bg-dark-hover/50 border-slate-700 focus:border-accent-primary transition-all"
-                placeholder="John Doe"
-                required
-                disabled={loading}
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="input"
+              placeholder="John Doe"
+              required
+              disabled={loading}
+            />
           </div>
 
-          {/* Email Field */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-slate-300">Email Address</label>
-            <div className="relative group">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent-primary transition-colors" size={18} />
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="input pl-11 h-12 bg-dark-hover/50 border-slate-700 focus:border-accent-primary transition-all"
-                placeholder="admin@example.com"
-                required
-                disabled={loading || !!admin}
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="input"
+              placeholder="admin@example.com"
+              required
+              disabled={loading || !!admin}
+            />
             {admin && (
-              <p className="text-xs text-slate-500">Email cannot be changed after creation</p>
+              <p className="text-xs text-slate-500 mt-1">Email cannot be changed</p>
             )}
           </div>
 
-          {/* User ID Field */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-slate-300">User ID (UID)</label>
-            <div className="relative group">
-              <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent-primary transition-colors" size={18} />
-              <input
-                type="text"
-                value={formData.userId}
-                onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                className="input pl-11 h-12 bg-dark-hover/50 border-slate-700 focus:border-accent-primary transition-all"
-                placeholder="Firebase UID"
-                required
-                disabled={loading}
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">User ID (UID)</label>
+            <input
+              type="text"
+              value={formData.userId}
+              onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+              className="input"
+              placeholder="Firebase UID"
+              required
+              disabled={loading}
+            />
           </div>
 
-          {/* Role Field */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-slate-300">Role</label>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Role</label>
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-              className="input h-12 bg-dark-hover/50 border-slate-700 focus:border-accent-primary cursor-pointer"
+              className="input"
               disabled={loading}
             >
               <option value="admin">Regular Admin</option>
               <option value="super_admin">Super Admin</option>
             </select>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 mt-1">
               Super admins have full access to all features
             </p>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <button 
               type="button" 
               onClick={onClose} 
-              className="flex-1 btn-secondary py-3 hover:border-slate-600 transition-all"
+              className="flex-1 btn-secondary"
               disabled={loading}
             >
               Cancel
@@ -376,17 +331,17 @@ const AdminModal: React.FC<{
             <button 
               type="submit" 
               disabled={loading} 
-              className="flex-1 btn-primary py-3 flex items-center justify-center gap-2 shadow-lg shadow-accent-primary/25 hover:shadow-xl hover:shadow-accent-primary/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="flex-1 btn-primary flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                   <span>Saving...</span>
                 </>
               ) : (
                 <>
                   <Save size={18} />
-                  <span>{admin ? 'Update Admin' : 'Add Admin'}</span>
+                  <span>{admin ? 'Update' : 'Add'}</span>
                 </>
               )}
             </button>
