@@ -10,16 +10,19 @@ import {
   where,
   orderBy,
   setDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { WhitelistUser, AdminUser, RegistrationConfig } from '../types';
 
 const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || '';
 
+// Helper function to delay execution
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const firebaseService = {
   // ========== SUPER ADMIN BOOTSTRAP ==========
   async bootstrapSuperAdmin(email: string, userId: string): Promise<void> {
-    // Only bootstrap if email matches super admin email
     if (!SUPER_ADMIN_EMAIL) {
       throw new Error('Super admin email not configured. Set VITE_SUPER_ADMIN_EMAIL in .env');
     }
@@ -27,14 +30,12 @@ export const firebaseService = {
       throw new Error('Not authorized to bootstrap super admin');
     }
 
-    // Check if super admin already exists
     const existing = await this.getAdminByEmail(email);
     if (existing) {
       console.log('Super admin already exists');
       return;
     }
 
-    // Create super admin document
     const adminsRef = collection(db, 'admin_users');
     const superAdminData = {
       email: email,
@@ -227,7 +228,7 @@ export const firebaseService = {
     return csv;
   },
 
-  // ========== IMPORT ==========
+  // ========== IMPROVED BULK IMPORT WITH BATCHING ==========
   async bulkImportWhitelistUsers(
     users: Array<{
       name: string;
@@ -236,52 +237,117 @@ export const firebaseService = {
       deviceId: string;
       isActive?: boolean;
     }>,
-    addedBy: string
-  ): Promise<{ success: number; failed: number; errors: string[] }> {
-    const usersRef = collection(db, 'whitelist_users');
+    addedBy: string,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<{ 
+    success: number; 
+    failed: number; 
+    errors: string[];
+    skipped: number;
+  }> {
+    const BATCH_SIZE = 50; // Process 50 users at a time
+    const DELAY_MS = 1000; // 1 second delay between batches
+    
     let success = 0;
     let failed = 0;
+    let skipped = 0;
     const errors: string[] = [];
+    const processedUserIds = new Set<string>();
 
-    for (const user of users) {
+    // Pre-validate all users
+    const validUsers = [];
+    for (let i = 0; i < users.length; i++) {
+      const user = users[i];
+      
       try {
         // Validate required fields
-        if (!user.name || !user.email || !user.userId || !user.deviceId) {
-          throw new Error(`Missing required fields for user: ${user.email || 'unknown'}`);
+        if (!user.name?.trim()) {
+          throw new Error(`Row ${i + 1}: Name is required`);
+        }
+        if (!user.email?.trim() || !user.email.includes('@')) {
+          throw new Error(`Row ${i + 1}: Valid email is required`);
+        }
+        if (!user.userId?.trim()) {
+          throw new Error(`Row ${i + 1}: User ID is required`);
+        }
+        if (!user.deviceId?.trim()) {
+          throw new Error(`Row ${i + 1}: Device ID is required`);
         }
 
-        // Check if user already exists
-        const existingQuery = query(
-          usersRef,
-          where('userId', '==', user.userId)
-        );
-        const existingSnapshot = await getDocs(existingQuery);
-        
-        if (!existingSnapshot.empty) {
-          throw new Error(`User with ID ${user.userId} already exists`);
+        // Check for duplicate userId in current batch
+        if (processedUserIds.has(user.userId)) {
+          skipped++;
+          errors.push(`Row ${i + 1}: Duplicate userId "${user.userId}" in import file`);
+          continue;
         }
 
-        // Add user
-        const newUser: Omit<WhitelistUser, 'id'> = {
-          name: user.name,
-          email: user.email,
-          userId: user.userId,
-          deviceId: user.deviceId,
-          isActive: user.isActive !== undefined ? user.isActive : true,
-          createdAt: Date.now(),
-          addedAt: Date.now(),
-          addedBy,
-          lastLogin: 0,
-        };
-        
-        await addDoc(usersRef, newUser);
-        success++;
+        processedUserIds.add(user.userId);
+        validUsers.push({ ...user, rowNumber: i + 1 });
       } catch (error: any) {
         failed++;
-        errors.push(error.message || 'Unknown error');
+        errors.push(error.message);
       }
     }
 
-    return { success, failed, errors };
+    // Process in batches
+    for (let i = 0; i < validUsers.length; i += BATCH_SIZE) {
+      const batch = validUsers.slice(i, i + BATCH_SIZE);
+      
+      // Process each user in the batch
+      for (const user of batch) {
+        try {
+          // Check if user already exists in database
+          const usersRef = collection(db, 'whitelist_users');
+          const existingQuery = query(
+            usersRef,
+            where('userId', '==', user.userId)
+          );
+          const existingSnapshot = await getDocs(existingQuery);
+          
+          if (!existingSnapshot.empty) {
+            skipped++;
+            errors.push(`Row ${user.rowNumber}: User with ID "${user.userId}" already exists in database`);
+            continue;
+          }
+
+          // Create new user
+          const newUser: Omit<WhitelistUser, 'id'> = {
+            name: user.name.trim(),
+            email: user.email.trim().toLowerCase(),
+            userId: user.userId.trim(),
+            deviceId: user.deviceId.trim(),
+            isActive: user.isActive !== undefined ? Boolean(user.isActive) : true,
+            createdAt: Date.now(),
+            addedAt: Date.now(),
+            addedBy,
+            lastLogin: 0,
+          };
+          
+          await addDoc(usersRef, newUser);
+          success++;
+          
+          // Report progress
+          if (onProgress) {
+            onProgress(success + failed + skipped, users.length);
+          }
+        } catch (error: any) {
+          failed++;
+          const errorMsg = error.message || 'Unknown error';
+          errors.push(`Row ${user.rowNumber}: ${errorMsg}`);
+          
+          // Report progress
+          if (onProgress) {
+            onProgress(success + failed + skipped, users.length);
+          }
+        }
+      }
+      
+      // Add delay between batches to avoid rate limiting
+      if (i + BATCH_SIZE < validUsers.length) {
+        await delay(DELAY_MS);
+      }
+    }
+
+    return { success, failed, errors, skipped };
   },
 };
