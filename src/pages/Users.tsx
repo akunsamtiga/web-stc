@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { firebaseService } from '../services/firebaseService';
 import type { WhitelistUser } from '../types';
@@ -6,7 +6,8 @@ import {
   Plus, Search, Edit, Trash2, Download, Upload,
   CheckCircle, XCircle, Filter, Users as UsersIcon,
   Mail, User as UserIcon, Hash, Smartphone,
-  Save, X, Calendar, Clock
+  Save, X, Calendar, Clock, FileText, AlertCircle,
+  FileSpreadsheet, Loader
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -18,6 +19,7 @@ export const Users: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingUser, setEditingUser] = useState<WhitelistUser | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -93,11 +95,28 @@ export const Users: React.FC = () => {
       a.href = url;
       a.download = `users-${Date.now()}.${format}`;
       a.click();
+      URL.revokeObjectURL(url);
       
       toast.success('Export successful');
     } catch (error) {
       toast.error('Export failed');
     }
+  };
+
+  const handleDownloadTemplate = () => {
+    const template = `name,email,userId,deviceId,isActive
+John Doe,john@example.com,user_001,device_001,true
+Jane Smith,jane@example.com,user_002,device_002,true`;
+    
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'users-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    toast.success('Template downloaded');
   };
 
   const stats = {
@@ -127,6 +146,13 @@ export const Users: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          <button 
+            onClick={() => setShowImportModal(true)} 
+            className="btn-secondary flex items-center gap-2 text-sm"
+          >
+            <Upload size={18} />
+            <span>Import</span>
+          </button>
           <button 
             onClick={() => setShowAddModal(true)} 
             className="btn-primary flex items-center gap-2 text-sm"
@@ -359,6 +385,15 @@ export const Users: React.FC = () => {
           currentUserEmail={user?.email || ''}
         />
       )}
+
+      {showImportModal && (
+        <ImportModal
+          onClose={() => setShowImportModal(false)}
+          onSuccess={loadUsers}
+          currentUserEmail={user?.email || ''}
+          onDownloadTemplate={handleDownloadTemplate}
+        />
+      )}
     </div>
   );
 };
@@ -495,6 +530,303 @@ const UserModal: React.FC<{
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+};
+
+// Import Modal Component
+const ImportModal: React.FC<{
+  onClose: () => void;
+  onSuccess: () => void;
+  currentUserEmail: string;
+  onDownloadTemplate: () => void;
+}> = ({ onClose, onSuccess, currentUserEmail, onDownloadTemplate }) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [result, setResult] = useState<{
+    success: number;
+    failed: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      const ext = selectedFile.name.split('.').pop()?.toLowerCase();
+      if (ext !== 'csv') {
+        toast.error('Please upload a CSV file');
+        return;
+      }
+      setFile(selectedFile);
+      setResult(null);
+    }
+  };
+
+  const parseCSV = (text: string): any[] => {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const users = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      const user: any = {};
+      
+      headers.forEach((header, index) => {
+        if (header === 'isactive') {
+          user[header] = values[index]?.toLowerCase() === 'true';
+        } else {
+          user[header] = values[index];
+        }
+      });
+      
+      users.push(user);
+    }
+
+    return users;
+  };
+
+  const handleImport = async () => {
+    if (!file) {
+      toast.error('Please select a file');
+      return;
+    }
+
+    setImporting(true);
+    setProgress({ current: 0, total: 0 });
+
+    try {
+      const text = await file.text();
+      const users = parseCSV(text);
+
+      if (users.length === 0) {
+        toast.error('No valid users found in file');
+        return;
+      }
+
+      setProgress({ current: 0, total: users.length });
+
+      const importResult = await firebaseService.bulkImportWhitelistUsers(
+        users,
+        currentUserEmail,
+        (current, total) => {
+          setProgress({ current, total });
+        }
+      );
+
+      setResult(importResult);
+
+      if (importResult.success > 0) {
+        toast.success(`Imported ${importResult.success} users successfully`);
+        onSuccess();
+      }
+
+      if (importResult.failed > 0 || importResult.skipped > 0) {
+        toast.error(`${importResult.failed} failed, ${importResult.skipped} skipped`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleReset = () => {
+    setFile(null);
+    setResult(null);
+    setProgress({ current: 0, total: 0 });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="card max-w-2xl w-full animate-scale-in max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+              <Upload className="text-blue-600" size={20} />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Import Users</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            disabled={importing}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Instructions */}
+        <div className="card bg-blue-50 border-blue-200 mb-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
+            <div className="text-sm space-y-2">
+              <p className="font-semibold text-blue-900">Import Instructions:</p>
+              <ul className="list-disc list-inside space-y-1 text-blue-800">
+                <li>Use CSV format with headers: name, email, userId, deviceId, isActive</li>
+                <li>isActive should be "true" or "false"</li>
+                <li>Duplicate userIds will be skipped</li>
+                <li>Maximum 500 users per import</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Download Template */}
+        <button
+          onClick={onDownloadTemplate}
+          className="btn-secondary w-full mb-6 flex items-center justify-center gap-2"
+          disabled={importing}
+        >
+          <FileSpreadsheet size={18} />
+          <span>Download CSV Template</span>
+        </button>
+
+        {/* File Upload */}
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            Select CSV File
+          </label>
+          <div className="relative">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              className="hidden"
+              disabled={importing}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full input h-auto py-8 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-blue-500 transition-colors"
+              disabled={importing}
+            >
+              <FileText size={32} className="text-slate-400" />
+              <span className="text-sm font-medium text-slate-600">
+                {file ? file.name : 'Click to select CSV file'}
+              </span>
+              {file && (
+                <span className="text-xs text-slate-500">
+                  {(file.size / 1024).toFixed(2)} KB
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        {importing && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-slate-700">Importing...</span>
+              <span className="text-sm text-slate-600">
+                {progress.current} / {progress.total}
+              </span>
+            </div>
+            <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-600 transition-all duration-300"
+                style={{
+                  width: progress.total > 0 ? `${(progress.current / progress.total) * 100}%` : '0%'
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Result Summary */}
+        {result && (
+          <div className="space-y-4 mb-6">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="card text-center bg-green-50 border-green-200">
+                <p className="text-2xl font-bold text-green-600">{result.success}</p>
+                <p className="text-xs text-slate-600 mt-1">Success</p>
+              </div>
+              <div className="card text-center bg-red-50 border-red-200">
+                <p className="text-2xl font-bold text-red-600">{result.failed}</p>
+                <p className="text-xs text-slate-600 mt-1">Failed</p>
+              </div>
+              <div className="card text-center bg-yellow-50 border-yellow-200">
+                <p className="text-2xl font-bold text-yellow-600">{result.skipped}</p>
+                <p className="text-xs text-slate-600 mt-1">Skipped</p>
+              </div>
+            </div>
+
+            {/* Error List */}
+            {result.errors.length > 0 && (
+              <div className="card bg-red-50 border-red-200 max-h-48 overflow-y-auto">
+                <p className="font-semibold text-red-900 mb-2">Errors:</p>
+                <ul className="space-y-1">
+                  {result.errors.slice(0, 10).map((error, index) => (
+                    <li key={index} className="text-xs text-red-800">
+                      • {error}
+                    </li>
+                  ))}
+                  {result.errors.length > 10 && (
+                    <li className="text-xs text-red-600 font-semibold">
+                      ... and {result.errors.length - 10} more errors
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          {result ? (
+            <>
+              <button
+                onClick={handleReset}
+                className="flex-1 btn-secondary"
+              >
+                Import Another File
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 btn-primary"
+              >
+                Close
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onClose}
+                className="flex-1 btn-secondary"
+                disabled={importing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={!file || importing}
+                className="flex-1 btn-primary flex items-center justify-center gap-2"
+              >
+                {importing ? (
+                  <>
+                    <Loader className="animate-spin" size={18} />
+                    <span>Importing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={18} />
+                    <span>Start Import</span>
+                  </>
+                )}
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
