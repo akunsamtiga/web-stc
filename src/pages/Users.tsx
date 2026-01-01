@@ -107,7 +107,8 @@ export const Users: React.FC = () => {
     if (format === 'csv') {
       const template = `name,email,userId,deviceId,isActive
 John Doe,john@example.com,user_001,device_001,true
-Jane Smith,jane@example.com,user_002,device_002,true`;
+Jane Smith,jane@example.com,user_002,device_002,true
+No Email,,user_003,device_003,true`;
       
       const blob = new Blob([template], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
@@ -130,6 +131,13 @@ Jane Smith,jane@example.com,user_002,device_002,true`;
           email: "jane@example.com",
           userId: "user_002",
           deviceId: "device_002",
+          isActive: true
+        },
+        {
+          name: "No Email User",
+          email: "",
+          userId: "user_003",
+          deviceId: "device_003",
           isActive: true
         }
       ], null, 2);
@@ -504,10 +512,10 @@ const UserModal: React.FC<{
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="input"
-              placeholder="john@example.com"
-              required
+              placeholder="john@example.com (optional)"
               disabled={loading}
             />
+            <p className="text-xs text-slate-500 mt-1">Leave empty if no email</p>
           </div>
 
           <div>
@@ -616,6 +624,8 @@ const ImportModal: React.FC<{
       headers.forEach((header, index) => {
         if (header === 'isactive') {
           user[header] = values[index]?.toLowerCase() === 'true';
+        } else if (header === 'email') {
+          user[header] = values[index] || ''; // Email bisa kosong
         } else {
           user[header] = values[index];
         }
@@ -630,13 +640,11 @@ const ImportModal: React.FC<{
   const parseJSON = (text: string): any[] => {
     try {
       const parsed = JSON.parse(text);
-      // Ensure it's an array
       if (!Array.isArray(parsed)) {
         throw new Error('JSON must be an array of user objects');
       }
       
-      // Validate each object has required fields
-      const requiredFields = ['name', 'email', 'userId', 'deviceId'];
+      const requiredFields = ['name', 'userId', 'deviceId'];
       const validated = parsed.map((user, index) => {
         requiredFields.forEach(field => {
           if (!user[field]) {
@@ -645,6 +653,7 @@ const ImportModal: React.FC<{
         });
         return {
           ...user,
+          email: user.email || '', // Email bisa kosong
           isActive: user.isActive !== undefined ? Boolean(user.isActive) : true
         };
       });
@@ -739,6 +748,7 @@ const ImportModal: React.FC<{
                 <li>Support both CSV and JSON formats</li>
                 <li>CSV headers: name, email, userId, deviceId, isActive</li>
                 <li>JSON must be an array of objects with same fields</li>
+                <li>Email is optional (leave empty if not available)</li>
                 <li>Duplicate userIds will be skipped</li>
                 <li>Maximum 500 users per import</li>
               </ul>

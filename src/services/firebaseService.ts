@@ -252,125 +252,126 @@ export const firebaseService = {
   },
   
   // ========== IMPROVED BULK IMPORT WITH BATCHING ==========
-  async bulkImportWhitelistUsers(
-    users: Array<{
-      name: string;
-      email: string;
-      userId: string;
-      deviceId: string;
-      isActive?: boolean;
-    }>,
-    addedBy: string,
-    onProgress?: (current: number, total: number) => void
-  ): Promise<{ 
-    success: number; 
-    failed: number; 
-    errors: string[];
-    skipped: number;
-  }> {
-    const BATCH_SIZE = 50; // Process 50 users at a time
-    const DELAY_MS = 1000; // 1 second delay between batches
+async bulkImportWhitelistUsers(
+  users: Array<{
+    name: string;
+    email?: string;
+    userId: string;
+    deviceId: string;
+    isActive?: boolean;
+  }>,
+  addedBy: string,
+  onProgress?: (current: number, total: number) => void
+): Promise<{ 
+  success: number; 
+  failed: number; 
+  errors: string[];
+  skipped: number;
+}> {
+  const BATCH_SIZE = 50; // Process 50 users at a time
+  const DELAY_MS = 1000; // 1 second delay between batches
+  
+  let success = 0;
+  let failed = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+  const processedUserIds = new Set<string>();
+
+  // Pre-validate all users
+  const validUsers = [];
+  for (let i = 0; i < users.length; i++) {
+    const user = users[i];
     
-    let success = 0;
-    let failed = 0;
-    let skipped = 0;
-    const errors: string[] = [];
-    const processedUserIds = new Set<string>();
+    try {
+      // Validate required fields (email now optional)
+      if (!user.name?.trim()) {
+        throw new Error(`Row ${i + 1}: Name is required`);
+      }
+      // Email validation - allow empty but must be valid format if provided
+      if (user.email && !user.email.includes('@')) {
+        throw new Error(`Row ${i + 1}: Valid email is required`);
+      }
+      if (!user.userId?.trim()) {
+        throw new Error(`Row ${i + 1}: User ID is required`);
+      }
+      if (!user.deviceId?.trim()) {
+        throw new Error(`Row ${i + 1}: Device ID is required`);
+      }
 
-    // Pre-validate all users
-    const validUsers = [];
-    for (let i = 0; i < users.length; i++) {
-      const user = users[i];
-      
+      // Check for duplicate userId in current batch
+      if (processedUserIds.has(user.userId)) {
+        skipped++;
+        errors.push(`Row ${i + 1}: Duplicate userId "${user.userId}" in import file`);
+        continue;
+      }
+
+      processedUserIds.add(user.userId);
+      validUsers.push({ ...user, rowNumber: i + 1 });
+    } catch (error: any) {
+      failed++;
+      errors.push(error.message);
+    }
+  }
+
+  // Process in batches
+  for (let i = 0; i < validUsers.length; i += BATCH_SIZE) {
+    const batch = validUsers.slice(i, i + BATCH_SIZE);
+    
+    // Process each user in the batch
+    for (const user of batch) {
       try {
-        // Validate required fields
-        if (!user.name?.trim()) {
-          throw new Error(`Row ${i + 1}: Name is required`);
-        }
-        if (!user.email?.trim() || !user.email.includes('@')) {
-          throw new Error(`Row ${i + 1}: Valid email is required`);
-        }
-        if (!user.userId?.trim()) {
-          throw new Error(`Row ${i + 1}: User ID is required`);
-        }
-        if (!user.deviceId?.trim()) {
-          throw new Error(`Row ${i + 1}: Device ID is required`);
-        }
-
-        // Check for duplicate userId in current batch
-        if (processedUserIds.has(user.userId)) {
+        // Check if user already exists in database
+        const usersRef = collection(db, 'whitelist_users');
+        const existingQuery = query(
+          usersRef,
+          where('userId', '==', user.userId)
+        );
+        const existingSnapshot = await getDocs(existingQuery);
+        
+        if (!existingSnapshot.empty) {
           skipped++;
-          errors.push(`Row ${i + 1}: Duplicate userId "${user.userId}" in import file`);
+          errors.push(`Row ${user.rowNumber}: User with ID "${user.userId}" already exists in database`);
           continue;
         }
 
-        processedUserIds.add(user.userId);
-        validUsers.push({ ...user, rowNumber: i + 1 });
+        // Create new user - email optional, use placeholder if empty
+        const newUser: Omit<WhitelistUser, 'id'> = {
+          name: user.name.trim(),
+          email: user.email?.trim().toLowerCase() || `no-email-${user.userId}@placeholder.local`,
+          userId: user.userId.trim(),
+          deviceId: user.deviceId.trim(),
+          isActive: user.isActive !== undefined ? Boolean(user.isActive) : true,
+          createdAt: Date.now(),
+          addedAt: Date.now(),
+          addedBy,
+          lastLogin: 0,
+        };
+        
+        await addDoc(usersRef, newUser);
+        success++;
+        
+        // Report progress
+        if (onProgress) {
+          onProgress(success + failed + skipped, users.length);
+        }
       } catch (error: any) {
         failed++;
-        errors.push(error.message);
-      }
-    }
-
-    // Process in batches
-    for (let i = 0; i < validUsers.length; i += BATCH_SIZE) {
-      const batch = validUsers.slice(i, i + BATCH_SIZE);
-      
-      // Process each user in the batch
-      for (const user of batch) {
-        try {
-          // Check if user already exists in database
-          const usersRef = collection(db, 'whitelist_users');
-          const existingQuery = query(
-            usersRef,
-            where('userId', '==', user.userId)
-          );
-          const existingSnapshot = await getDocs(existingQuery);
-          
-          if (!existingSnapshot.empty) {
-            skipped++;
-            errors.push(`Row ${user.rowNumber}: User with ID "${user.userId}" already exists in database`);
-            continue;
-          }
-
-          // Create new user
-          const newUser: Omit<WhitelistUser, 'id'> = {
-            name: user.name.trim(),
-            email: user.email.trim().toLowerCase(),
-            userId: user.userId.trim(),
-            deviceId: user.deviceId.trim(),
-            isActive: user.isActive !== undefined ? Boolean(user.isActive) : true,
-            createdAt: Date.now(),
-            addedAt: Date.now(),
-            addedBy,
-            lastLogin: 0,
-          };
-          
-          await addDoc(usersRef, newUser);
-          success++;
-          
-          // Report progress
-          if (onProgress) {
-            onProgress(success + failed + skipped, users.length);
-          }
-        } catch (error: any) {
-          failed++;
-          const errorMsg = error.message || 'Unknown error';
-          errors.push(`Row ${user.rowNumber}: ${errorMsg}`);
-          
-          // Report progress
-          if (onProgress) {
-            onProgress(success + failed + skipped, users.length);
-          }
+        const errorMsg = error.message || 'Unknown error';
+        errors.push(`Row ${user.rowNumber}: ${errorMsg}`);
+        
+        // Report progress
+        if (onProgress) {
+          onProgress(success + failed + skipped, users.length);
         }
       }
-      
-      // Add delay between batches to avoid rate limiting
-      if (i + BATCH_SIZE < validUsers.length) {
-        await delay(DELAY_MS);
-      }
     }
+    
+    // Add delay between batches to avoid rate limiting
+    if (i + BATCH_SIZE < validUsers.length) {
+      await delay(DELAY_MS);
+    }
+  }
 
-    return { success, failed, errors, skipped };
-  },
+  return { success, failed, errors, skipped };
+},
 };
