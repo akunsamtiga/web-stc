@@ -7,7 +7,7 @@ import {
   CheckCircle, XCircle, Filter, Users as UsersIcon,
   Mail, User as UserIcon, Hash, Smartphone,
   Save, X, Calendar, Clock, FileText, AlertCircle,
-  FileSpreadsheet, Loader
+  FileSpreadsheet, Loader, Code
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -103,20 +103,47 @@ export const Users: React.FC = () => {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const template = `name,email,userId,deviceId,isActive
+  const handleDownloadTemplate = (format: 'csv' | 'json') => {
+    if (format === 'csv') {
+      const template = `name,email,userId,deviceId,isActive
 John Doe,john@example.com,user_001,device_001,true
 Jane Smith,jane@example.com,user_002,device_002,true`;
+      
+      const blob = new Blob([template], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'users-template.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const template = JSON.stringify([
+        {
+          name: "John Doe",
+          email: "john@example.com",
+          userId: "user_001",
+          deviceId: "device_001",
+          isActive: true
+        },
+        {
+          name: "Jane Smith",
+          email: "jane@example.com",
+          userId: "user_002",
+          deviceId: "device_002",
+          isActive: true
+        }
+      ], null, 2);
+      
+      const blob = new Blob([template], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'users-template.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
     
-    const blob = new Blob([template], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'users-template.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    toast.success('Template downloaded');
+    toast.success(`${format.toUpperCase()} template downloaded`);
   };
 
   const stats = {
@@ -210,6 +237,13 @@ Jane Smith,jane@example.com,user_002,device_002,true`;
               title="Export CSV"
             >
               <Download size={18} />
+            </button>
+            <button 
+              onClick={() => handleExport('json')} 
+              className="btn-secondary px-3 h-11"
+              title="Export JSON"
+            >
+              <Code size={18} />
             </button>
           </div>
         </div>
@@ -540,7 +574,7 @@ const ImportModal: React.FC<{
   onClose: () => void;
   onSuccess: () => void;
   currentUserEmail: string;
-  onDownloadTemplate: () => void;
+  onDownloadTemplate: (format: 'csv' | 'json') => void;
 }> = ({ onClose, onSuccess, currentUserEmail, onDownloadTemplate }) => {
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -552,16 +586,18 @@ const ImportModal: React.FC<{
     errors: string[];
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileFormat, setFileFormat] = useState<'csv' | 'json' | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       const ext = selectedFile.name.split('.').pop()?.toLowerCase();
-      if (ext !== 'csv') {
-        toast.error('Please upload a CSV file');
+      if (ext !== 'csv' && ext !== 'json') {
+        toast.error('Please upload a CSV or JSON file');
         return;
       }
       setFile(selectedFile);
+      setFileFormat(ext as 'csv' | 'json');
       setResult(null);
     }
   };
@@ -591,8 +627,36 @@ const ImportModal: React.FC<{
     return users;
   };
 
+  const parseJSON = (text: string): any[] => {
+    try {
+      const parsed = JSON.parse(text);
+      // Ensure it's an array
+      if (!Array.isArray(parsed)) {
+        throw new Error('JSON must be an array of user objects');
+      }
+      
+      // Validate each object has required fields
+      const requiredFields = ['name', 'email', 'userId', 'deviceId'];
+      const validated = parsed.map((user, index) => {
+        requiredFields.forEach(field => {
+          if (!user[field]) {
+            throw new Error(`Row ${index + 1}: Missing required field "${field}"`);
+          }
+        });
+        return {
+          ...user,
+          isActive: user.isActive !== undefined ? Boolean(user.isActive) : true
+        };
+      });
+      
+      return validated;
+    } catch (error: any) {
+      throw new Error(`JSON parsing error: ${error.message}`);
+    }
+  };
+
   const handleImport = async () => {
-    if (!file) {
+    if (!file || !fileFormat) {
       toast.error('Please select a file');
       return;
     }
@@ -602,7 +666,7 @@ const ImportModal: React.FC<{
 
     try {
       const text = await file.text();
-      const users = parseCSV(text);
+      const users = fileFormat === 'csv' ? parseCSV(text) : parseJSON(text);
 
       if (users.length === 0) {
         toast.error('No valid users found in file');
@@ -638,6 +702,7 @@ const ImportModal: React.FC<{
 
   const handleReset = () => {
     setFile(null);
+    setFileFormat(null);
     setResult(null);
     setProgress({ current: 0, total: 0 });
     if (fileInputRef.current) {
@@ -671,8 +736,9 @@ const ImportModal: React.FC<{
             <div className="text-sm space-y-2">
               <p className="font-semibold text-blue-900">Import Instructions:</p>
               <ul className="list-disc list-inside space-y-1 text-blue-800">
-                <li>Use CSV format with headers: name, email, userId, deviceId, isActive</li>
-                <li>isActive should be "true" or "false"</li>
+                <li>Support both CSV and JSON formats</li>
+                <li>CSV headers: name, email, userId, deviceId, isActive</li>
+                <li>JSON must be an array of objects with same fields</li>
                 <li>Duplicate userIds will be skipped</li>
                 <li>Maximum 500 users per import</li>
               </ul>
@@ -680,26 +746,36 @@ const ImportModal: React.FC<{
           </div>
         </div>
 
-        {/* Download Template */}
-        <button
-          onClick={onDownloadTemplate}
-          className="btn-secondary w-full mb-6 flex items-center justify-center gap-2"
-          disabled={importing}
-        >
-          <FileSpreadsheet size={18} />
-          <span>Download CSV Template</span>
-        </button>
+        {/* Download Templates */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <button
+            onClick={() => onDownloadTemplate('csv')}
+            className="btn-secondary flex items-center justify-center gap-2"
+            disabled={importing}
+          >
+            <FileSpreadsheet size={18} />
+            <span>CSV Template</span>
+          </button>
+          <button
+            onClick={() => onDownloadTemplate('json')}
+            className="btn-secondary flex items-center justify-center gap-2"
+            disabled={importing}
+          >
+            <Code size={18} />
+            <span>JSON Template</span>
+          </button>
+        </div>
 
         {/* File Upload */}
         <div className="mb-6">
           <label className="block text-sm font-semibold text-slate-700 mb-2">
-            Select CSV File
+            Select File (CSV or JSON)
           </label>
           <div className="relative">
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.json,application/json,text/csv"
               onChange={handleFileChange}
               className="hidden"
               disabled={importing}
@@ -711,11 +787,11 @@ const ImportModal: React.FC<{
             >
               <FileText size={32} className="text-slate-400" />
               <span className="text-sm font-medium text-slate-600">
-                {file ? file.name : 'Click to select CSV file'}
+                {file ? file.name : 'Click to select file'}
               </span>
               {file && (
                 <span className="text-xs text-slate-500">
-                  {(file.size / 1024).toFixed(2)} KB
+                  {(file.size / 1024).toFixed(2)} KB • {fileFormat?.toUpperCase()}
                 </span>
               )}
             </button>

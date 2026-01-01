@@ -228,6 +228,29 @@ export const firebaseService = {
     return csv;
   },
 
+  // ========== JSON IMPORT ==========
+  async importWhitelistFromJSON(
+    jsonData: string,
+    addedBy: string,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<{
+    success: number;
+    failed: number;
+    errors: string[];
+    skipped: number;
+  }> {
+    try {
+      const users = JSON.parse(jsonData);
+      if (!Array.isArray(users)) {
+        throw new Error('Invalid JSON format. Must be an array of user objects.');
+      }
+      
+      return await this.bulkImportWhitelistUsers(users, addedBy, onProgress);
+    } catch (error: any) {
+      throw new Error(`JSON Import Error: ${error.message}`);
+    }
+  },
+  
   // ========== IMPROVED BULK IMPORT WITH BATCHING ==========
   async bulkImportWhitelistUsers(
     users: Array<{
