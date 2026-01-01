@@ -35,7 +35,7 @@ export const Login: React.FC = () => {
               <Shield className="text-white" size={32} />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Stockity Admin</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">STC AutoTrade Admin</h1>
           <p className="text-slate-600">Sign in to access dashboard</p>
         </div>
 
@@ -112,9 +112,9 @@ export const Login: React.FC = () => {
         {/* Footer */}
         <div className="text-center mt-8 space-y-2">
           <p className="text-sm text-slate-500">
-            Powered by <span className="text-blue-600 font-semibold">Stockity Trading Platform</span>
+            Powered by <span className="text-blue-600 font-semibold">STC AutoTrade Trading Platform</span>
           </p>
-          <p className="text-xs text-slate-400">© 2025 All rights reserved</p>
+          <p className="text-xs text-slate-400">© 2026 All rights reserved</p>
         </div>
       </div>
     </div>
