@@ -8,6 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Users } from './pages/Users';
 import { Admins } from './pages/Admins';
 import { Settings } from './pages/Settings';
+import { NotFound } from './pages/NotFound';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -42,6 +43,8 @@ function App() {
             <Route path="admins" element={<Admins />} />
             <Route path="settings" element={<Settings />} />
           </Route>
+          {/* Add 404 route - catches all unmatched paths */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
       <Toaster
