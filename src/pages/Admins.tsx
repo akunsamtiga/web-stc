@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { firebaseService } from '../services/firebaseService';
 import type { AdminUser } from '../types';
-import { Plus, Edit, Trash2, Shield, UserCog, Mail, User as UserIcon, Save, X, AlertCircle, Hash } from 'lucide-react';
+import { Plus, Edit, Trash2, Shield, UserCog, Save, X, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 

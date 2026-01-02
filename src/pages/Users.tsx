@@ -4,9 +4,9 @@ import { firebaseService } from '../services/firebaseService';
 import type { WhitelistUser } from '../types';
 import { 
   Plus, Search, Edit, Trash2, Download, Upload,
-  CheckCircle, XCircle, Filter, Users as UsersIcon,
-  Mail, User as UserIcon, Hash, Smartphone,
-  Save, X, Calendar, Clock, FileText, AlertCircle,
+  Users as UsersIcon,
+  User as UserIcon,
+  Save, X, FileText, AlertCircle,
   FileSpreadsheet, Loader, Code, AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -769,7 +769,7 @@ const ImportModal: React.FC<{
                 <li>JSON must be an array of objects with same fields</li>
                 <li>Email is optional (leave empty if not available)</li>
                 <li>Duplicate userIds will be skipped</li>
-                <li>Maximum 500 users per import</li>
+                <li>Maximum 5000 users per import</li>
               </ul>
             </div>
           </div>
