@@ -30,13 +30,15 @@ export const firebaseService = {
       throw new Error('Not authorized to bootstrap super admin');
     }
 
-    const existing = await this.getAdminByEmail(email);
-    if (existing) {
+    // Use email as document ID
+    const adminDocRef = doc(db, 'admin_users', email);
+    const existing = await getDoc(adminDocRef);
+    
+    if (existing.exists()) {
       console.log('Super admin already exists');
       return;
     }
 
-    const adminsRef = collection(db, 'admin_users');
     const superAdminData = {
       email: email,
       name: 'Super Administrator',
@@ -46,9 +48,11 @@ export const firebaseService = {
       createdAt: Date.now(),
       createdBy: 'system',
       lastLogin: Date.now(),
+      fcmToken: '',
+      fcmTokenUpdatedAt: 0,
     };
 
-    await addDoc(adminsRef, superAdminData);
+    await setDoc(adminDocRef, superAdminData);
     console.log('Super admin created successfully');
   },
 
@@ -107,13 +111,12 @@ export const firebaseService = {
     const usersRef = collection(db, 'whitelist_users');
     const snapshot = await getDocs(usersRef);
     
-    const BATCH_SIZE = 500; // Firestore batch limit
+    const BATCH_SIZE = 500;
     const total = snapshot.docs.length;
     let success = 0;
     let failed = 0;
     const errors: string[] = [];
 
-    // Process in batches
     for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
       const batch = writeBatch(db);
       const batchDocs = snapshot.docs.slice(i, i + BATCH_SIZE);
@@ -126,12 +129,10 @@ export const firebaseService = {
         await batch.commit();
         success += batchDocs.length;
 
-        // Report progress
         if (onProgress) {
           onProgress(success + failed, total);
         }
 
-        // Small delay between batches
         if (i + BATCH_SIZE < snapshot.docs.length) {
           await delay(500);
         }
@@ -139,7 +140,6 @@ export const firebaseService = {
         failed += batchDocs.length;
         errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`);
         
-        // Report progress
         if (onProgress) {
           onProgress(success + failed, total);
         }
@@ -152,72 +152,85 @@ export const firebaseService = {
   // ========== ADMIN USERS ==========
   async getAdminUsers(): Promise<AdminUser[]> {
     const adminsRef = collection(db, 'admin_users');
-    const q = query(adminsRef, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminUser));
+    const snapshot = await getDocs(adminsRef);
+    
+    return snapshot.docs.map(doc => ({ 
+      id: doc.id, // This is now the email
+      ...doc.data() 
+    } as AdminUser));
   },
 
   async addAdminUser(admin: Omit<AdminUser, 'id'>, createdBy: string): Promise<string> {
-    const adminsRef = collection(db, 'admin_users');
+    // Use email as document ID
+    const adminDocRef = doc(db, 'admin_users', admin.email);
+    
+    // Check if already exists
+    const existing = await getDoc(adminDocRef);
+    if (existing.exists()) {
+      throw new Error('Admin with this email already exists');
+    }
+
     const newAdmin = {
       ...admin,
       createdAt: Date.now(),
       createdBy,
       isActive: true,
       lastLogin: 0,
+      fcmToken: '',
+      fcmTokenUpdatedAt: 0,
     };
-    const docRef = await addDoc(adminsRef, newAdmin);
-    return docRef.id;
+    
+    await setDoc(adminDocRef, newAdmin);
+    return admin.email; // Return email as ID
   },
 
-  async updateAdminUser(adminId: string, data: Partial<AdminUser>): Promise<void> {
-    const adminRef = doc(db, 'admin_users', adminId);
+  async updateAdminUser(adminEmail: string, data: Partial<AdminUser>): Promise<void> {
+    const adminRef = doc(db, 'admin_users', adminEmail);
     await updateDoc(adminRef, data);
   },
 
-  async deleteAdminUser(adminId: string): Promise<void> {
-    const adminRef = doc(db, 'admin_users', adminId);
+  async deleteAdminUser(adminEmail: string): Promise<void> {
+    const adminRef = doc(db, 'admin_users', adminEmail);
     await deleteDoc(adminRef);
   },
 
   async checkIsAdmin(email: string): Promise<boolean> {
     if (email === SUPER_ADMIN_EMAIL) return true;
     
-    const adminsRef = collection(db, 'admin_users');
-    const q = query(adminsRef, where('email', '==', email), where('isActive', '==', true));
-    const snapshot = await getDocs(q);
-    return !snapshot.empty;
+    const adminRef = doc(db, 'admin_users', email);
+    const adminDoc = await getDoc(adminRef);
+    
+    return adminDoc.exists() && adminDoc.data()?.isActive === true;
   },
 
   async checkIsSuperAdmin(email: string): Promise<boolean> {
     if (email === SUPER_ADMIN_EMAIL) return true;
     
-    const adminsRef = collection(db, 'admin_users');
-    const q = query(
-      adminsRef,
-      where('email', '==', email),
-      where('role', '==', 'super_admin'),
-      where('isActive', '==', true)
-    );
-    const snapshot = await getDocs(q);
-    return !snapshot.empty;
+    const adminRef = doc(db, 'admin_users', email);
+    const adminDoc = await getDoc(adminRef);
+    
+    return adminDoc.exists() && 
+           adminDoc.data()?.role === 'super_admin' && 
+           adminDoc.data()?.isActive === true;
   },
 
   async getAdminByEmail(email: string): Promise<AdminUser | null> {
-    const adminsRef = collection(db, 'admin_users');
-    const q = query(adminsRef, where('email', '==', email));
-    const snapshot = await getDocs(q);
+    const adminRef = doc(db, 'admin_users', email);
+    const adminDoc = await getDoc(adminRef);
     
-    if (snapshot.empty) return null;
-    const docSnap = snapshot.docs[0];
-    return { id: docSnap.id, ...docSnap.data() } as AdminUser;
+    if (!adminDoc.exists()) return null;
+    
+    return { 
+      id: adminDoc.id, 
+      ...adminDoc.data() 
+    } as AdminUser;
   },
 
   async updateLastLogin(email: string): Promise<void> {
-    const admin = await this.getAdminByEmail(email);
-    if (admin) {
-      await this.updateAdminUser(admin.id, { lastLogin: Date.now() });
-    }
+    const adminRef = doc(db, 'admin_users', email);
+    await updateDoc(adminRef, { 
+      lastLogin: Date.now() 
+    });
   },
 
   // ========== CONFIG ==========
@@ -286,30 +299,7 @@ export const firebaseService = {
     return csv;
   },
 
-  // ========== JSON IMPORT ==========
-  async importWhitelistFromJSON(
-    jsonData: string,
-    addedBy: string,
-    onProgress?: (current: number, total: number) => void
-  ): Promise<{
-    success: number;
-    failed: number;
-    errors: string[];
-    skipped: number;
-  }> {
-    try {
-      const users = JSON.parse(jsonData);
-      if (!Array.isArray(users)) {
-        throw new Error('Invalid JSON format. Must be an array of user objects.');
-      }
-      
-      return await this.bulkImportWhitelistUsers(users, addedBy, onProgress);
-    } catch (error: any) {
-      throw new Error(`JSON Import Error: ${error.message}`);
-    }
-  },
-  
-  // ========== IMPROVED BULK IMPORT WITH BATCHING ==========
+  // ========== BULK IMPORT ==========
   async bulkImportWhitelistUsers(
     users: Array<{
       name: string;

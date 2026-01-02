@@ -28,7 +28,7 @@ export const Admins: React.FC = () => {
     }
   };
 
-  const handleDelete = async (adminId: string) => {
+  const handleDelete = async (adminEmail: string) => {
     if (!isSuperAdmin) {
       toast.error('Only super admins can delete admins');
       return;
@@ -37,7 +37,7 @@ export const Admins: React.FC = () => {
     if (!confirm('Delete this admin? This cannot be undone.')) return;
     
     try {
-      await firebaseService.deleteAdminUser(adminId);
+      await firebaseService.deleteAdminUser(adminEmail);
       toast.success('Admin deleted');
       loadAdmins();
     } catch (error: any) {
@@ -174,7 +174,7 @@ export const Admins: React.FC = () => {
                     <Edit size={16} />
                   </button>
                   <button
-                    onClick={() => handleDelete(admin.id)}
+                    onClick={() => handleDelete(admin.email)}
                     className="px-3 h-9 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
                   >
                     <Trash2 size={16} />
@@ -230,11 +230,15 @@ const AdminModal: React.FC<{
 
     try {
       if (admin) {
-        await firebaseService.updateAdminUser(admin.id, formData);
+        // Update existing admin - use email as ID
+        await firebaseService.updateAdminUser(admin.email, {
+          name: formData.name,
+          role: formData.role,
+        } as any);
         toast.success('Admin updated');
       } else {
         await firebaseService.addAdminUser(formData as any, currentUserEmail);
-        toast.success('Admin added');
+        toast.success('Admin added - Make sure they have a Firebase Authentication account!');
       }
       onSave();
       onClose();
@@ -285,8 +289,12 @@ const AdminModal: React.FC<{
               required
               disabled={loading || !!admin}
             />
-            {admin && (
+            {admin ? (
               <p className="text-xs text-slate-500 mt-1">Email cannot be changed</p>
+            ) : (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ Make sure this email exists in Firebase Authentication!
+              </p>
             )}
           </div>
 
@@ -299,8 +307,11 @@ const AdminModal: React.FC<{
               className="input"
               placeholder="Firebase UID"
               required
-              disabled={loading}
+              disabled={loading || !!admin}
             />
+            {admin && (
+              <p className="text-xs text-slate-500 mt-1">User ID cannot be changed</p>
+            )}
           </div>
 
           <div>
