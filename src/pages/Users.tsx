@@ -7,7 +7,7 @@ import {
   CheckCircle, XCircle, Filter, Users as UsersIcon,
   Mail, User as UserIcon, Hash, Smartphone,
   Save, X, Calendar, Clock, FileText, AlertCircle,
-  FileSpreadsheet, Loader, Code
+  FileSpreadsheet, Loader, Code, AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -20,6 +20,7 @@ export const Users: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [editingUser, setEditingUser] = useState<WhitelistUser | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -253,6 +254,15 @@ No Email,,user_003,device_003,true`;
             >
               <Code size={18} />
             </button>
+            {isSuperAdmin && users.length > 0 && (
+              <button 
+                onClick={() => setShowDeleteAllModal(true)} 
+                className="btn-secondary px-3 h-11 bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
+                title="Delete All Users"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -434,6 +444,15 @@ No Email,,user_003,device_003,true`;
           onSuccess={loadUsers}
           currentUserEmail={user?.email || ''}
           onDownloadTemplate={handleDownloadTemplate}
+        />
+      )}
+
+      {showDeleteAllModal && (
+        <DeleteAllModal
+          totalUsers={users.length}
+          onClose={() => setShowDeleteAllModal(false)}
+          onSuccess={loadUsers}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
     </div>
@@ -625,7 +644,7 @@ const ImportModal: React.FC<{
         if (header === 'isactive') {
           user[header] = values[index]?.toLowerCase() === 'true';
         } else if (header === 'email') {
-          user[header] = values[index] || ''; // Email bisa kosong
+          user[header] = values[index] || '';
         } else {
           user[header] = values[index];
         }
@@ -653,7 +672,7 @@ const ImportModal: React.FC<{
         });
         return {
           ...user,
-          email: user.email || '', // Email bisa kosong
+          email: user.email || '',
           isActive: user.isActive !== undefined ? Boolean(user.isActive) : true
         };
       });
@@ -846,7 +865,6 @@ const ImportModal: React.FC<{
               </div>
             </div>
 
-            {/* Error List */}
             {result.errors.length > 0 && (
               <div className="card bg-red-50 border-red-200 max-h-48 overflow-y-auto">
                 <p className="font-semibold text-red-900 mb-2">Errors:</p>
@@ -913,6 +931,215 @@ const ImportModal: React.FC<{
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Delete All Modal Component
+const DeleteAllModal: React.FC<{
+  totalUsers: number;
+  onClose: () => void;
+  onSuccess: () => void;
+  isSuperAdmin: boolean;
+}> = ({ totalUsers, onClose, onSuccess, isSuperAdmin }) => {
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [result, setResult] = useState<{
+    success: number;
+    failed: number;
+    errors: string[];
+  } | null>(null);
+
+  const CONFIRM_TEXT = 'DELETE ALL USERS';
+
+  const handleDelete = async () => {
+    if (!isSuperAdmin) {
+      toast.error('Only super admin can delete all users');
+      return;
+    }
+
+    if (confirmText !== CONFIRM_TEXT) {
+      toast.error('Please type the confirmation text correctly');
+      return;
+    }
+
+    setDeleting(true);
+    setProgress({ current: 0, total: totalUsers });
+
+    try {
+      const deleteResult = await firebaseService.deleteAllWhitelistUsers(
+        isSuperAdmin,
+        (current, total) => {
+          setProgress({ current, total });
+        }
+      );
+
+      setResult(deleteResult);
+
+      if (deleteResult.success > 0) {
+        toast.success(`Deleted ${deleteResult.success} users successfully`);
+        onSuccess();
+      }
+
+      if (deleteResult.failed > 0) {
+        toast.error(`${deleteResult.failed} users failed to delete`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Delete operation failed');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="card max-w-lg w-full animate-scale-in">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+              <AlertTriangle className="text-red-600" size={20} />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Delete All Users</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            disabled={deleting}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {!result ? (
+          <>
+            {/* Warning */}
+            <div className="card bg-red-50 border-red-200 mb-6">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+                <div>
+                  <h3 className="font-bold text-red-900 mb-2">⚠️ CRITICAL WARNING ⚠️</h3>
+                  <div className="text-sm text-red-800 space-y-2">
+                    <p className="font-semibold">You are about to delete ALL {totalUsers} users!</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>This action is IRREVERSIBLE</li>
+                      <li>All user data will be permanently deleted</li>
+                      <li>Export your data first if you need a backup</li>
+                      <li>This may take several minutes</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Confirmation Input */}
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Type "<span className="text-red-600 font-mono">{CONFIRM_TEXT}</span>" to confirm:
+              </label>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                className="input"
+                placeholder={CONFIRM_TEXT}
+                disabled={deleting}
+                autoComplete="off"
+              />
+            </div>
+
+            {/* Progress Bar */}
+            {deleting && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-slate-700">Deleting...</span>
+                  <span className="text-sm text-slate-600">
+                    {progress.current} / {progress.total}
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-red-600 transition-all duration-300"
+                    style={{
+                      width: progress.total > 0 ? `${(progress.current / progress.total) * 100}%` : '0%'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 btn-secondary"
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={confirmText !== CONFIRM_TEXT || deleting}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <Loader className="animate-spin" size={18} />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={18} />
+                    <span>Delete All Users</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Result Summary */}
+            <div className="space-y-4 mb-6">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="card text-center bg-green-50 border-green-200">
+                  <p className="text-2xl font-bold text-green-600">{result.success}</p>
+                  <p className="text-xs text-slate-600 mt-1">Deleted</p>
+                </div>
+                <div className="card text-center bg-red-50 border-red-200">
+                  <p className="text-2xl font-bold text-red-600">{result.failed}</p>
+                  <p className="text-xs text-slate-600 mt-1">Failed</p>
+                </div>
+              </div>
+
+              {result.errors.length > 0 && (
+                <div className="card bg-red-50 border-red-200 max-h-48 overflow-y-auto">
+                  <p className="font-semibold text-red-900 mb-2">Errors:</p>
+                  <ul className="space-y-1">
+                    {result.errors.map((error, index) => (
+                      <li key={index} className="text-xs text-red-800">
+                        • {error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                onClose();
+                if (result.success > 0) {
+                  window.location.reload();
+                }
+              }}
+              className="w-full btn-primary"
+            >
+              Close
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
