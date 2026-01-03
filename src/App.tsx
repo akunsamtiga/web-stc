@@ -43,7 +43,6 @@ function App() {
             <Route path="admins" element={<Admins />} />
             <Route path="settings" element={<Settings />} />
           </Route>
-          {/* 404 Not Found - Must be last */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

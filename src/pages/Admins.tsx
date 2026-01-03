@@ -19,19 +19,16 @@ export const Admins: React.FC = () => {
 
   const loadAdmins = async () => {
     try {
-      console.log('📥 Loading admins...');
       const data = await firebaseService.getAdminUsers();
-      console.log('✅ Loaded admins:', data.length);
       setAdmins(data);
     } catch (error) {
-      console.error('❌ Error loading admins:', error);
       toast.error('Failed to load admins');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (adminEmail: string) => {
+  const handleDelete = async (adminId: string) => {
     if (!isSuperAdmin) {
       toast.error('Only super admins can delete admins');
       return;
@@ -40,12 +37,10 @@ export const Admins: React.FC = () => {
     if (!confirm('Delete this admin? This cannot be undone.')) return;
     
     try {
-      console.log('🗑️ Deleting admin:', adminEmail);
-      await firebaseService.deleteAdminUser(adminEmail);
+      await firebaseService.deleteAdminUser(adminId);
       toast.success('Admin deleted');
       loadAdmins();
     } catch (error: any) {
-      console.error('❌ Delete error:', error);
       toast.error(error.message || 'Failed to delete admin');
     }
   };
@@ -99,7 +94,7 @@ export const Admins: React.FC = () => {
           const isCurrentUser = admin.email === user?.email;
           
           return (
-            <div key={admin.email} className="card hover:shadow-md transition-shadow">
+            <div key={admin.id} className="card hover:shadow-md transition-shadow">
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
@@ -156,14 +151,12 @@ export const Admins: React.FC = () => {
               <div className="pt-4 border-t border-slate-200 space-y-2 text-xs text-slate-600">
                 <div className="flex justify-between">
                   <span>Created</span>
-                  <span className="font-medium">
-                    {admin.createdAt ? format(new Date(admin.createdAt), 'MMM dd, yyyy') : 'Unknown'}
-                  </span>
+                  <span className="font-medium">{format(new Date(admin.createdAt), 'MMM dd, yyyy')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Last Login</span>
                   <span className="font-medium">
-                    {admin.lastLogin && admin.lastLogin > 0
+                    {admin.lastLogin > 0 
                       ? format(new Date(admin.lastLogin), 'MMM dd, HH:mm')
                       : 'Never'
                     }
@@ -176,13 +169,12 @@ export const Admins: React.FC = () => {
                 <div className="flex gap-2 mt-4 pt-4 border-t border-slate-200">
                   <button
                     onClick={() => setEditingAdmin(admin)}
-                    className="flex-1 btn-secondary text-sm h-9 flex items-center justify-center gap-2"
+                    className="flex-1 btn-secondary text-sm h-9"
                   >
                     <Edit size={16} />
-                    <span>Edit</span>
                   </button>
                   <button
-                    onClick={() => handleDelete(admin.email)}
+                    onClick={() => handleDelete(admin.id)}
                     className="px-3 h-9 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
                   >
                     <Trash2 size={16} />
@@ -198,9 +190,6 @@ export const Admins: React.FC = () => {
         <div className="card text-center py-16">
           <UserCog size={48} className="mx-auto text-slate-300 mb-3" />
           <p className="text-slate-500">No administrators found</p>
-          <p className="text-sm text-slate-400 mt-2">
-            Configure VITE_SUPER_ADMIN_EMAIL in your .env file and login to create the first admin
-          </p>
         </div>
       )}
 
@@ -241,23 +230,15 @@ const AdminModal: React.FC<{
 
     try {
       if (admin) {
-        // Update existing admin
-        console.log('✏️ Updating admin:', admin.email);
-        await firebaseService.updateAdminUser(admin.email, {
-          name: formData.name,
-          role: formData.role,
-        } as any);
+        await firebaseService.updateAdminUser(admin.id, formData);
         toast.success('Admin updated');
       } else {
-        // Add new admin
-        console.log('➕ Adding new admin:', formData.email);
         await firebaseService.addAdminUser(formData as any, currentUserEmail);
-        toast.success('Admin added successfully!');
+        toast.success('Admin added');
       }
       onSave();
       onClose();
     } catch (error: any) {
-      console.error('❌ Save error:', error);
       toast.error(error.message || 'Operation failed');
     } finally {
       setLoading(false);
@@ -304,12 +285,8 @@ const AdminModal: React.FC<{
               required
               disabled={loading || !!admin}
             />
-            {admin ? (
+            {admin && (
               <p className="text-xs text-slate-500 mt-1">Email cannot be changed</p>
-            ) : (
-              <p className="text-xs text-amber-600 mt-1">
-                ⚠️ Make sure this email exists in Firebase Authentication!
-              </p>
             )}
           </div>
 
@@ -322,15 +299,8 @@ const AdminModal: React.FC<{
               className="input"
               placeholder="Firebase UID"
               required
-              disabled={loading || !!admin}
+              disabled={loading}
             />
-            {admin ? (
-              <p className="text-xs text-slate-500 mt-1">User ID cannot be changed</p>
-            ) : (
-              <p className="text-xs text-slate-500 mt-1">
-                Get this from Firebase Authentication console
-              </p>
-            )}
           </div>
 
           <div>

@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User } from 'firebase/auth';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink
+} from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { firebaseService } from '../services/firebaseService';
 import toast from 'react-hot-toast';
@@ -11,6 +18,8 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithEmailLink: (email: string) => Promise<void>;
+  completeEmailLinkSignIn: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -23,53 +32,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
-    console.log('🔧 Setting up auth state listener...');
-    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('👤 Auth state changed:', user?.email || 'No user');
       setUser(user);
       
-      if (user && user.email) {
+      if (user) {
         try {
-          // Check if user is super admin from environment
           const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL;
-          
-          if (SUPER_ADMIN_EMAIL && user.email === SUPER_ADMIN_EMAIL) {
-            console.log('🔑 Super admin detected from env:', user.email);
-            
-            // Try to bootstrap super admin if not exists
-            try {
-              await firebaseService.bootstrapSuperAdmin(user.email, user.uid);
-              console.log('✅ Super admin bootstrap completed');
-            } catch (error) {
-              console.error('❌ Bootstrap error:', error);
-            }
+          if (SUPER_ADMIN_EMAIL && user.email && user.email === SUPER_ADMIN_EMAIL) {
+            await firebaseService.bootstrapSuperAdmin(user.email, user.uid);
           }
           
-          // Check admin status
-          console.log('🔍 Checking admin status for:', user.email);
-          const adminCheck = await firebaseService.checkIsAdmin(user.email);
-          const superAdminCheck = await firebaseService.checkIsSuperAdmin(user.email);
-          
-          console.log('📋 Admin check results:', { 
-            isAdmin: adminCheck, 
-            isSuperAdmin: superAdminCheck 
-          });
+          const adminCheck = await firebaseService.checkIsAdmin(user.email || '');
+          const superAdminCheck = await firebaseService.checkIsSuperAdmin(user.email || '');
           
           setIsAdmin(adminCheck);
           setIsSuperAdmin(superAdminCheck);
           
-          // Update last login if admin
           if (adminCheck) {
-            try {
-              await firebaseService.updateLastLogin(user.email);
-              console.log('✅ Last login updated');
-            } catch (error) {
-              console.warn('⚠️ Could not update last login:', error);
-            }
+            await firebaseService.updateLastLogin(user.email || '');
           }
         } catch (error) {
-          console.error('❌ Error checking admin status:', error);
+          console.error('Error checking admin status:', error);
           setIsAdmin(false);
           setIsSuperAdmin(false);
         }
@@ -84,47 +67,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
+  // Check if completing email link sign-in on component mount
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      completeEmailLinkSignIn();
+    }
+  }, []);
+
   const login = async (email: string, password: string) => {
     try {
       setLoading(true);
-      console.log('🔐 Attempting login for:', email);
       
-      // Sign in with Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('✅ Firebase authentication successful');
       
-      // Check if super admin email
       const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL;
       if (SUPER_ADMIN_EMAIL && email === SUPER_ADMIN_EMAIL) {
-        console.log('🔑 Super admin login detected');
-        
-        // Bootstrap super admin if needed
-        try {
-          await firebaseService.bootstrapSuperAdmin(email, userCredential.user.uid);
-          console.log('✅ Super admin ready');
-          toast.success('Welcome, Super Admin!');
-          return;
-        } catch (error) {
-          console.error('❌ Bootstrap error:', error);
-        }
+        await firebaseService.bootstrapSuperAdmin(email, userCredential.user.uid);
+        toast.success('Welcome, Super Admin!');
+        return;
       }
       
-      // Check if user is an admin
-      console.log('🔍 Verifying admin access...');
       const adminCheck = await firebaseService.checkIsAdmin(email);
       
       if (!adminCheck) {
-        console.log('❌ User is not an admin');
         await signOut(auth);
         throw new Error('Access denied. You are not authorized as an admin.');
       }
       
-      console.log('✅ Admin access verified');
       toast.success('Login successful!');
     } catch (error: any) {
-      console.error('❌ Login error:', error);
+      console.error('Login error:', error);
       
-      // Handle Firebase auth errors
       if (error.code === 'auth/user-not-found') {
         toast.error('No account found with this email');
       } else if (error.code === 'auth/wrong-password') {
@@ -133,8 +106,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error('Invalid email address');
       } else if (error.code === 'auth/too-many-requests') {
         toast.error('Too many failed attempts. Please try again later');
-      } else if (error.code === 'auth/network-request-failed') {
-        toast.error('Network error. Please check your internet connection');
       } else {
         toast.error(error.message || 'Login failed');
       }
@@ -145,21 +116,92 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithEmailLink = async (email: string) => {
+    try {
+      setLoading(true);
+
+      const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL;
+      if (!SUPER_ADMIN_EMAIL || email !== SUPER_ADMIN_EMAIL) {
+        throw new Error('Passwordless login is only available for super admin');
+      }
+
+      const actionCodeSettings = {
+        url: window.location.origin + '/complete-login',
+        handleCodeInApp: true,
+      };
+
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      
+      // Save email to localStorage to complete sign-in
+      window.localStorage.setItem('emailForSignIn', email);
+      
+      toast.success('Login link sent to your email! Check your inbox.');
+    } catch (error: any) {
+      console.error('Email link error:', error);
+      toast.error(error.message || 'Failed to send login link');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeEmailLinkSignIn = async () => {
+    try {
+      setLoading(true);
+      
+      let email = window.localStorage.getItem('emailForSignIn');
+      
+      if (!email) {
+        email = window.prompt('Please provide your email for confirmation');
+      }
+      
+      if (!email) {
+        throw new Error('Email is required to complete sign-in');
+      }
+
+      const result = await signInWithEmailLink(auth, email, window.location.href);
+      
+      window.localStorage.removeItem('emailForSignIn');
+      
+      const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL;
+      if (SUPER_ADMIN_EMAIL && email === SUPER_ADMIN_EMAIL) {
+        await firebaseService.bootstrapSuperAdmin(email, result.user.uid);
+      }
+      
+      toast.success('Successfully signed in!');
+      
+      // Redirect to home
+      window.location.href = '/';
+    } catch (error: any) {
+      console.error('Complete sign-in error:', error);
+      toast.error(error.message || 'Failed to complete sign-in');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
-      console.log('🚪 Logging out...');
       await signOut(auth);
       toast.success('Logged out successfully');
-      console.log('✅ Logout successful');
     } catch (error: any) {
-      console.error('❌ Logout error:', error);
       toast.error(error.message);
       throw error;
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, isSuperAdmin, login, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      isAdmin, 
+      isSuperAdmin, 
+      login, 
+      loginWithEmailLink,
+      completeEmailLinkSignIn,
+      logout 
+    }}>
       {children}
     </AuthContext.Provider>
   );
