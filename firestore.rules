@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin(email) {
+      return exists(/databases/$(database)/documents/admin_users/$(email)) &&
+             get(/databases/$(database)/documents/admin_users/$(email)).data.isActive == true;
+    }
+    
+    function isSuperAdmin(email) {
+      return exists(/databases/$(database)/documents/admin_users/$(email)) &&
+             get(/databases/$(database)/documents/admin_users/$(email)).data.role == "super_admin" &&
+             get(/databases/$(database)/documents/admin_users/$(email)).data.isActive == true;
+    }
+    
+    function isValidWhitelistData() {
+      return request.resource.data.keys().hasAll(['email', 'userId', 'deviceId', 'isActive']);
+    }
+    
+    function isValidAdminData() {
+      return request.resource.data.keys().hasAll(['email', 'userId', 'role', 'isActive']);
+    }
+    
+    // ✅ Limit query size to prevent abuse (only for unauthenticated)
+    function isValidQueryLimit() {
+      return request.query.limit <= 100;
+    }
+    
+    // ✅ NEW: Allow count aggregation queries (for statistics)
+    function isCountAggregation() {
+      return request.query.aggregation != null;
+    }
+    
+    // ============================================
+    // WHITELIST USERS COLLECTION
+    // ============================================
+    
+    match /whitelist_users/{userId} {
+      // ✅ Read: 
+      // - Count aggregation (for statistics): ALWAYS allowed
+      // - Mobile app (unauthenticated): Must have query limit <= 100
+      // - Web admin (authenticated): No limit restriction
+      allow read: if isCountAggregation() || isAuthenticated() || isValidQueryLimit();
+      
+      // ✅ Create: With valid data
+      allow create: if isValidWhitelistData() &&
+                      request.resource.data.email is string &&
+                      request.resource.data.userId is string &&
+                      request.resource.data.isActive is bool;
+      
+      // ✅ Update: Authenticated or with valid data
+      allow update: if isAuthenticated() || isValidWhitelistData();
+      
+      // ✅ Delete: Anyone (app validates permissions)
+      allow delete: if true;
+    }
+    
+    // ============================================
+    // ADMIN USERS COLLECTION
+    // ============================================
+    
+    match /admin_users/{adminId} {
+      // ✅ Read: 
+      // - Count aggregation (for statistics): ALWAYS allowed
+      // - Mobile app (unauthenticated): Must have query limit <= 100
+      // - Web admin (authenticated): No limit restriction
+      allow read: if isCountAggregation() || isAuthenticated() || isValidQueryLimit();
+      
+      // ✅ Create: Only valid admin data
+      allow create: if isValidAdminData() &&
+                      request.resource.data.email is string &&
+                      request.resource.data.userId is string &&
+                      request.resource.data.role in ['admin', 'super_admin'];
+      
+      // ✅ Update: Authenticated or with valid data
+      allow update: if isAuthenticated() || isValidAdminData();
+      
+      // ✅ Delete: Anyone (app validates super admin)
+      allow delete: if true;
+    }
+    
+    // ============================================
+    // APP CONFIG COLLECTION
+    // ============================================
+    
+    match /app_config/{configId} {
+      // ✅ Read: Everyone
+      allow read: if true;
+      
+      // ✅ Write: Only for valid config structure
+      allow write: if request.resource.data.keys().hasAll(['registrationUrl', 'whatsappHelpUrl', 'isActive']);
+    }
+    
+    // ============================================
+    // SECURITY LOGS COLLECTION (Write-only)
+    // ============================================
+    
+    match /security_logs/{logId} {
+      // ✅ Read: Count aggregation, authenticated, or with query limit
+      allow read: if isCountAggregation() || isAuthenticated() || isValidQueryLimit();
+      
+      // ✅ Write: Anyone can log
+      allow create: if true;
+      
+      // ✅ No update/delete to preserve audit trail
+      allow update, delete: if false;
+    }
+  }
+}
