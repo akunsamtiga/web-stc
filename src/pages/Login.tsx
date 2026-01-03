@@ -28,21 +28,20 @@ export const Login: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo Section */}
         <div className="text-center mb-8 animate-fade-in">
           <div className="inline-block mb-6">
             <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-lg">
               <Shield className="text-white" size={32} />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">STC AutoTrade Admin</h1>
-          <p className="text-slate-600">Sign in to access dashboard</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
+            STC AutoTrade Admin
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600">Sign in to access dashboard</p>
         </div>
 
-        {/* Login Card */}
         <div className="card animate-scale-in">
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email Field */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Email Address
@@ -53,7 +52,7 @@ export const Login: React.FC = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="input pl-11 h-12"
+                  className="input pl-11 h-12 text-sm sm:text-base"
                   placeholder="admin@example.com"
                   required
                   disabled={loading}
@@ -62,7 +61,6 @@ export const Login: React.FC = () => {
               </div>
             </div>
 
-            {/* Password Field */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Password
@@ -73,7 +71,7 @@ export const Login: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="input pl-11 pr-11 h-12"
+                  className="input pl-11 pr-11 h-12 text-sm sm:text-base"
                   placeholder="••••••••"
                   required
                   disabled={loading}
@@ -91,11 +89,10 @@ export const Login: React.FC = () => {
               </div>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full h-12 text-base font-semibold flex items-center justify-center gap-2"
+              className="btn-primary w-full h-12 text-sm sm:text-base font-semibold flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -109,10 +106,9 @@ export const Login: React.FC = () => {
           </form>
         </div>
 
-        {/* Footer */}
         <div className="text-center mt-8 space-y-2">
-          <p className="text-sm text-slate-500">
-            Powered by <span className="text-blue-600 font-semibold">STC AutoTrade Trading Platform</span>
+          <p className="text-xs sm:text-sm text-slate-500">
+            Powered by <span className="text-blue-600 font-semibold">STC AutoTrade</span>
           </p>
           <p className="text-xs text-slate-400">© 2026 All rights reserved</p>
         </div>

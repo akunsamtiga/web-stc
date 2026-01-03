@@ -30,41 +30,40 @@ export const Admins: React.FC = () => {
 
   const handleDelete = async (adminId: string) => {
     if (!isSuperAdmin) {
-      toast.error('Only super admins can delete admins');
+      toast.error('Only super admins can delete');
       return;
     }
     
-    if (!confirm('Delete this admin? This cannot be undone.')) return;
+    if (!confirm('Delete this admin?')) return;
     
     try {
       await firebaseService.deleteAdminUser(adminId);
       toast.success('Admin deleted');
       loadAdmins();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete admin');
+      toast.error(error.message || 'Failed to delete');
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="w-12 h-12 border-3 border-blue-200 rounded-full animate-spin border-t-blue-600"></div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-12 h-12 border-4 border-blue-200 rounded-full animate-spin border-t-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fade-in">
-      {/* Header */}
+    <div className="space-y-4 animate-fade-in pb-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">Admins</h1>
-          <p className="text-slate-600">{admins.length} administrators</p>
+          <p className="text-sm text-slate-600">{admins.length} administrators</p>
         </div>
         {isSuperAdmin && (
           <button 
             onClick={() => setShowAddModal(true)} 
-            className="btn-primary flex items-center gap-2 text-sm w-full sm:w-auto justify-center"
+            className="btn-primary flex items-center justify-center gap-2 text-sm h-10 w-full sm:w-auto"
           >
             <Plus size={18} />
             <span>Add Admin</span>
@@ -72,38 +71,35 @@ export const Admins: React.FC = () => {
         )}
       </div>
 
-      {/* Warning for non-super admin */}
       {!isSuperAdmin && (
-        <div className="card bg-yellow-50 border-yellow-200">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
+        <div className="card bg-yellow-50 border-yellow-200 p-3">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={18} />
             <div>
-              <h3 className="font-bold text-yellow-900 mb-1">View Only</h3>
-              <p className="text-sm text-yellow-800">
-                Only super administrators can add, edit, or remove admin accounts.
+              <h3 className="font-bold text-yellow-900 mb-1 text-sm">View Only</h3>
+              <p className="text-xs text-yellow-800">
+                Only super admins can manage admin accounts.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Admins Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {admins.map((admin) => {
           const isSuperAdminUser = admin.role === 'super_admin';
           const isCurrentUser = admin.email === user?.email;
           
           return (
-            <div key={admin.id} className="card hover:shadow-md transition-shadow">
-              {/* Header */}
+            <div key={admin.id} className="card p-4">
               <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
                   isSuperAdminUser ? 'bg-yellow-100' : 'bg-blue-100'
                 }`}>
                   {isSuperAdminUser ? (
-                    <Shield className="text-yellow-600" size={24} />
+                    <Shield className="text-yellow-600" size={22} />
                   ) : (
-                    <UserCog className="text-blue-600" size={24} />
+                    <UserCog className="text-blue-600" size={22} />
                   )}
                 </div>
                 
@@ -114,18 +110,16 @@ export const Admins: React.FC = () => {
                 )}
               </div>
 
-              {/* Info */}
               <div className="space-y-3 mb-4">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 mb-1">{admin.name}</h3>
+                  <h3 className="text-base font-bold text-slate-900 mb-1">{admin.name}</h3>
                   <p className="text-sm text-slate-600 break-all">{admin.email}</p>
                 </div>
 
-                {/* Stats */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 bg-slate-50 rounded-xl">
+                  <div className="p-2.5 bg-slate-50 rounded-xl">
                     <p className="text-xs text-slate-500 mb-1">Role</p>
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold ${
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold ${
                       isSuperAdminUser
                         ? 'bg-yellow-100 text-yellow-700'
                         : 'bg-blue-100 text-blue-700'
@@ -134,9 +128,9 @@ export const Admins: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl">
+                  <div className="p-2.5 bg-slate-50 rounded-xl">
                     <p className="text-xs text-slate-500 mb-1">Status</p>
-                    <span className={`inline-block px-2 py-1 rounded-lg text-xs font-bold ${
+                    <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-bold ${
                       admin.isActive
                         ? 'bg-green-100 text-green-700'
                         : 'bg-slate-200 text-slate-600'
@@ -147,8 +141,7 @@ export const Admins: React.FC = () => {
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="pt-4 border-t border-slate-200 space-y-2 text-xs text-slate-600">
+              <div className="pt-3 border-t border-slate-200 space-y-1.5 text-xs text-slate-600">
                 <div className="flex justify-between">
                   <span>Created</span>
                   <span className="font-medium">{format(new Date(admin.createdAt), 'MMM dd, yyyy')}</span>
@@ -164,18 +157,18 @@ export const Admins: React.FC = () => {
                 </div>
               </div>
 
-              {/* Actions */}
               {isSuperAdmin && !isCurrentUser && (
-                <div className="flex gap-2 mt-4 pt-4 border-t border-slate-200">
+                <div className="flex gap-2 mt-4 pt-3 border-t border-slate-200">
                   <button
                     onClick={() => setEditingAdmin(admin)}
-                    className="flex-1 btn-secondary text-sm h-9"
+                    className="flex-1 btn-secondary text-sm h-9 flex items-center justify-center gap-1.5"
                   >
                     <Edit size={16} />
+                    <span>Edit</span>
                   </button>
                   <button
                     onClick={() => handleDelete(admin.id)}
-                    className="px-3 h-9 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
+                    className="px-3 h-9 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors flex items-center justify-center"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -189,11 +182,10 @@ export const Admins: React.FC = () => {
       {admins.length === 0 && (
         <div className="card text-center py-16">
           <UserCog size={48} className="mx-auto text-slate-300 mb-3" />
-          <p className="text-slate-500">No administrators found</p>
+          <p className="text-sm text-slate-500">No administrators found</p>
         </div>
       )}
 
-      {/* Add/Edit Modal */}
       {(showAddModal || editingAdmin) && (
         <AdminModal
           admin={editingAdmin}
@@ -209,7 +201,6 @@ export const Admins: React.FC = () => {
   );
 };
 
-// Admin Modal Component
 const AdminModal: React.FC<{
   admin: AdminUser | null;
   onClose: () => void;
@@ -248,14 +239,11 @@ const AdminModal: React.FC<{
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="card max-w-lg w-full animate-scale-in max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-slate-900">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900">
             {admin ? 'Edit Admin' : 'Add Admin'}
           </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -267,7 +255,7 @@ const AdminModal: React.FC<{
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="input"
+              className="input text-sm"
               placeholder="John Doe"
               required
               disabled={loading}
@@ -280,7 +268,7 @@ const AdminModal: React.FC<{
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="input"
+              className="input text-sm"
               placeholder="admin@example.com"
               required
               disabled={loading || !!admin}
@@ -296,7 +284,7 @@ const AdminModal: React.FC<{
               type="text"
               value={formData.userId}
               onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-              className="input"
+              className="input text-sm"
               placeholder="Firebase UID"
               required
               disabled={loading}
@@ -308,22 +296,22 @@ const AdminModal: React.FC<{
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-              className="input"
+              className="input text-sm"
               disabled={loading}
             >
               <option value="admin">Regular Admin</option>
               <option value="super_admin">Super Admin</option>
             </select>
             <p className="text-xs text-slate-500 mt-1">
-              Super admins have full access to all features
+              Super admins have full access
             </p>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-2 pt-4">
             <button 
               type="button" 
               onClick={onClose} 
-              className="flex-1 btn-secondary"
+              className="flex-1 btn-secondary h-10 text-sm"
               disabled={loading}
             >
               Cancel
@@ -331,7 +319,7 @@ const AdminModal: React.FC<{
             <button 
               type="submit" 
               disabled={loading} 
-              className="flex-1 btn-primary flex items-center justify-center gap-2"
+              className="flex-1 btn-primary flex items-center justify-center gap-2 h-10 text-sm"
             >
               {loading ? (
                 <>

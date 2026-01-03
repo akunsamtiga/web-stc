@@ -159,7 +159,7 @@ export const NotFound: React.FC = () => {
           {/* Footer */}
           <div className="mt-12 text-sm text-slate-500 animate-fade-in" style={{ animationDelay: '0.6s' }}>
             <p className="mb-2">Error Code: <span className="font-mono font-bold text-blue-600">404</span></p>
-            <p className="text-xs">Need help? Contact support at support@stockity.com</p>
+            <p className="text-xs">Need help? Contact support at stcautotrade</p>
           </div>
         </div>
       </div>

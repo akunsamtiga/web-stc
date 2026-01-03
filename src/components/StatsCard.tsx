@@ -45,7 +45,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
     <div 
       onClick={onClick}
       className={`
-        ${colors.bg} rounded-2xl p-4 sm:p-6 border border-slate-200 
+        ${colors.bg} rounded-2xl p-3 sm:p-5 border border-slate-200 
         transition-all duration-300 cursor-pointer active:scale-[0.98]
         shadow-sm hover:shadow-md
       `}
@@ -56,7 +56,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
         </div>
       </div>
       
-      <p className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">
+      <p className="text-xl sm:text-3xl font-bold text-slate-900 mb-1">
         {value.toLocaleString()}
       </p>
       <p className="text-xs sm:text-sm font-medium text-slate-600">{label}</p>
