@@ -11,6 +11,7 @@ import {
   orderBy,
   setDoc,
   writeBatch,
+  runTransaction,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { WhitelistUser, AdminUser, RegistrationConfig } from '../types';
@@ -19,6 +20,11 @@ const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || '';
 
 // Helper function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// ⭐ NEW: Generate safe document ID from userId
+const sanitizeDocId = (userId: string): string => {
+  return userId.replace(/[^a-zA-Z0-9_-]/g, '_');
+};
 
 export const firebaseService = {
   // ========== SUPER ADMIN BOOTSTRAP ==========
@@ -67,8 +73,17 @@ export const firebaseService = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WhitelistUser));
   },
 
+  // ⭐ IMPROVED: Use userId as document ID to prevent duplicates
   async addWhitelistUser(user: Omit<WhitelistUser, 'id'>, addedBy: string): Promise<string> {
-    const usersRef = collection(db, 'whitelist_users');
+    const docId = sanitizeDocId(user.userId);
+    const userRef = doc(db, 'whitelist_users', docId);
+    
+    // Check if already exists
+    const existingDoc = await getDoc(userRef);
+    if (existingDoc.exists()) {
+      throw new Error(`User with ID "${user.userId}" already exists`);
+    }
+
     const newUser = {
       ...user,
       createdAt: Date.now(),
@@ -77,8 +92,9 @@ export const firebaseService = {
       isActive: true,
       lastLogin: 0,
     };
-    const docRef = await addDoc(usersRef, newUser);
-    return docRef.id;
+    
+    await setDoc(userRef, newUser);
+    return docId;
   },
 
   async updateWhitelistUser(userId: string, data: Partial<WhitelistUser>): Promise<void> {
@@ -147,6 +163,82 @@ export const firebaseService = {
     }
 
     return { success, failed, errors };
+  },
+
+  // ⭐ NEW: Remove duplicate users based on userId
+  async removeDuplicateUsers(
+    isSuperAdmin: boolean,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<{
+    totalScanned: number;
+    duplicatesFound: number;
+    duplicatesRemoved: number;
+    errors: string[];
+  }> {
+    if (!isSuperAdmin) {
+      throw new Error('Only super admin can remove duplicates');
+    }
+
+    const usersRef = collection(db, 'whitelist_users');
+    const snapshot = await getDocs(usersRef);
+    
+    const userIdMap = new Map<string, string[]>(); // userId -> [docId1, docId2, ...]
+    
+    // Group documents by userId
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const userId = data.userId;
+      
+      if (!userIdMap.has(userId)) {
+        userIdMap.set(userId, []);
+      }
+      userIdMap.get(userId)!.push(doc.id);
+    });
+
+    const duplicates: string[] = [];
+    userIdMap.forEach((docIds, userId) => {
+      if (docIds.length > 1) {
+        // Keep the first one (oldest), delete the rest
+        duplicates.push(...docIds.slice(1));
+      }
+    });
+
+    let removed = 0;
+    const errors: string[] = [];
+    const BATCH_SIZE = 500;
+
+    // Delete duplicates in batches
+    for (let i = 0; i < duplicates.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const batchIds = duplicates.slice(i, i + BATCH_SIZE);
+
+      try {
+        batchIds.forEach(docId => {
+          const docRef = doc(db, 'whitelist_users', docId);
+          batch.delete(docRef);
+        });
+
+        await batch.commit();
+        removed += batchIds.length;
+
+        if (onProgress) {
+          onProgress(removed, duplicates.length);
+        }
+
+        if (i + BATCH_SIZE < duplicates.length) {
+          await delay(500);
+        }
+      } catch (error: any) {
+        errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`);
+      }
+    }
+
+    return {
+      totalScanned: snapshot.docs.length,
+      duplicatesFound: duplicates.length,
+      duplicatesRemoved: removed,
+      errors,
+    };
   },
 
   // ========== ADMIN USERS ==========
@@ -309,7 +401,7 @@ export const firebaseService = {
     }
   },
   
-  // ========== IMPROVED BULK IMPORT WITH BATCHING ==========
+  // ⭐ COMPLETELY REWRITTEN: Bulk import with proper duplicate prevention
   async bulkImportWhitelistUsers(
     users: Array<{
       name: string;
@@ -333,80 +425,144 @@ export const firebaseService = {
     let failed = 0;
     let skipped = 0;
     const errors: string[] = [];
-    const processedUserIds = new Set<string>();
 
-    const validUsers = [];
+    // Step 1: Validate all users first
+    const validUsers: Array<{
+      userId: string;
+      name: string;
+      email: string;
+      deviceId: string;
+      isActive: boolean;
+      rowNumber: number;
+    }> = [];
+    
+    const seenUserIds = new Set<string>();
+
     for (let i = 0; i < users.length; i++) {
       const user = users[i];
+      const rowNum = i + 1;
       
       try {
+        // Validation
         if (!user.name?.trim()) {
-          throw new Error(`Row ${i + 1}: Name is required`);
+          throw new Error('Name is required');
         }
         if (user.email && !user.email.includes('@')) {
-          throw new Error(`Row ${i + 1}: Valid email is required`);
+          throw new Error('Valid email is required');
         }
         if (!user.userId?.trim()) {
-          throw new Error(`Row ${i + 1}: User ID is required`);
+          throw new Error('User ID is required');
         }
         if (!user.deviceId?.trim()) {
-          throw new Error(`Row ${i + 1}: Device ID is required`);
+          throw new Error('Device ID is required');
         }
 
-        if (processedUserIds.has(user.userId)) {
+        // Check for duplicates within import file
+        if (seenUserIds.has(user.userId)) {
           skipped++;
-          errors.push(`Row ${i + 1}: Duplicate userId "${user.userId}" in import file`);
+          errors.push(`Row ${rowNum}: Duplicate userId "${user.userId}" in import file`);
           continue;
         }
 
-        processedUserIds.add(user.userId);
-        validUsers.push({ ...user, rowNumber: i + 1 });
+        seenUserIds.add(user.userId);
+        validUsers.push({
+          userId: user.userId.trim(),
+          name: user.name.trim(),
+          email: user.email?.trim().toLowerCase() || `no-email-${user.userId}@placeholder.local`,
+          deviceId: user.deviceId.trim(),
+          isActive: user.isActive !== undefined ? Boolean(user.isActive) : true,
+          rowNumber: rowNum,
+        });
       } catch (error: any) {
         failed++;
-        errors.push(error.message);
+        errors.push(`Row ${rowNum}: ${error.message}`);
       }
     }
 
-    for (let i = 0; i < validUsers.length; i += BATCH_SIZE) {
-      const batch = validUsers.slice(i, i + BATCH_SIZE);
+    // Step 2: Batch check existing users in database
+    const existingUserIds = new Set<string>();
+    
+    for (let i = 0; i < validUsers.length; i += 30) {
+      const batch = validUsers.slice(i, i + 30);
+      const userIds = batch.map(u => u.userId);
       
-      for (const user of batch) {
-        try {
-          const usersRef = collection(db, 'whitelist_users');
-          const existingQuery = query(
-            usersRef,
-            where('userId', '==', user.userId)
-          );
-          const existingSnapshot = await getDocs(existingQuery);
-          
-          if (!existingSnapshot.empty) {
-            skipped++;
-            errors.push(`Row ${user.rowNumber}: User with ID "${user.userId}" already exists in database`);
-            continue;
-          }
+      try {
+        const usersRef = collection(db, 'whitelist_users');
+        const q = query(usersRef, where('userId', 'in', userIds));
+        const snapshot = await getDocs(q);
+        
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          existingUserIds.add(data.userId);
+        });
+      } catch (error: any) {
+        console.error('Error checking existing users:', error);
+      }
+    }
 
-          const newUser: Omit<WhitelistUser, 'id'> = {
-            name: user.name.trim(),
-            email: user.email?.trim().toLowerCase() || `no-email-${user.userId}@placeholder.local`,
-            userId: user.userId.trim(),
-            deviceId: user.deviceId.trim(),
-            isActive: user.isActive !== undefined ? Boolean(user.isActive) : true,
+    // Step 3: Filter out existing users
+    const usersToImport = validUsers.filter(user => {
+      if (existingUserIds.has(user.userId)) {
+        skipped++;
+        errors.push(`Row ${user.rowNumber}: User "${user.userId}" already exists in database`);
+        return false;
+      }
+      return true;
+    });
+
+    // Step 4: Import in batches using document IDs based on userId
+    for (let i = 0; i < usersToImport.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const batchUsers = usersToImport.slice(i, i + BATCH_SIZE);
+      
+      try {
+        batchUsers.forEach(user => {
+          const docId = sanitizeDocId(user.userId);
+          const userRef = doc(db, 'whitelist_users', docId);
+          
+          batch.set(userRef, {
+            name: user.name,
+            email: user.email,
+            userId: user.userId,
+            deviceId: user.deviceId,
+            isActive: user.isActive,
             createdAt: Date.now(),
             addedAt: Date.now(),
             addedBy,
             lastLogin: 0,
-          };
-          
-          await addDoc(usersRef, newUser);
-          success++;
-          
-          if (onProgress) {
-            onProgress(success + failed + skipped, users.length);
+          });
+        });
+
+        await batch.commit();
+        success += batchUsers.length;
+        
+        if (onProgress) {
+          onProgress(success + failed + skipped, users.length);
+        }
+      } catch (error: any) {
+        // If batch fails, try individual imports
+        for (const user of batchUsers) {
+          try {
+            const docId = sanitizeDocId(user.userId);
+            const userRef = doc(db, 'whitelist_users', docId);
+            
+            await setDoc(userRef, {
+              name: user.name,
+              email: user.email,
+              userId: user.userId,
+              deviceId: user.deviceId,
+              isActive: user.isActive,
+              createdAt: Date.now(),
+              addedAt: Date.now(),
+              addedBy,
+              lastLogin: 0,
+            });
+            
+            success++;
+          } catch (individualError: any) {
+            failed++;
+            errors.push(`Row ${user.rowNumber}: ${individualError.message}`);
           }
-        } catch (error: any) {
-          failed++;
-          const errorMsg = error.message || 'Unknown error';
-          errors.push(`Row ${user.rowNumber}: ${errorMsg}`);
           
           if (onProgress) {
             onProgress(success + failed + skipped, users.length);
@@ -414,7 +570,8 @@ export const firebaseService = {
         }
       }
       
-      if (i + BATCH_SIZE < validUsers.length) {
+      // Delay between batches
+      if (i + BATCH_SIZE < usersToImport.length) {
         await delay(DELAY_MS);
       }
     }
