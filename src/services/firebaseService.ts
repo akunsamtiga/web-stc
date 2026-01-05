@@ -11,7 +11,6 @@ import {
   orderBy,
   setDoc,
   writeBatch,
-  runTransaction,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { WhitelistUser, AdminUser, RegistrationConfig } from '../types';
@@ -21,7 +20,7 @@ const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || '';
 // Helper function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// ⭐ NEW: Generate safe document ID from userId
+// ⭐ Generate safe document ID from userId
 const sanitizeDocId = (userId: string): string => {
   return userId.replace(/[^a-zA-Z0-9_-]/g, '_');
 };
@@ -163,82 +162,6 @@ export const firebaseService = {
     }
 
     return { success, failed, errors };
-  },
-
-  // ⭐ NEW: Remove duplicate users based on userId
-  async removeDuplicateUsers(
-    isSuperAdmin: boolean,
-    onProgress?: (current: number, total: number) => void
-  ): Promise<{
-    totalScanned: number;
-    duplicatesFound: number;
-    duplicatesRemoved: number;
-    errors: string[];
-  }> {
-    if (!isSuperAdmin) {
-      throw new Error('Only super admin can remove duplicates');
-    }
-
-    const usersRef = collection(db, 'whitelist_users');
-    const snapshot = await getDocs(usersRef);
-    
-    const userIdMap = new Map<string, string[]>(); // userId -> [docId1, docId2, ...]
-    
-    // Group documents by userId
-    snapshot.docs.forEach(doc => {
-      const data = doc.data();
-      const userId = data.userId;
-      
-      if (!userIdMap.has(userId)) {
-        userIdMap.set(userId, []);
-      }
-      userIdMap.get(userId)!.push(doc.id);
-    });
-
-    const duplicates: string[] = [];
-    userIdMap.forEach((docIds, userId) => {
-      if (docIds.length > 1) {
-        // Keep the first one (oldest), delete the rest
-        duplicates.push(...docIds.slice(1));
-      }
-    });
-
-    let removed = 0;
-    const errors: string[] = [];
-    const BATCH_SIZE = 500;
-
-    // Delete duplicates in batches
-    for (let i = 0; i < duplicates.length; i += BATCH_SIZE) {
-      const batch = writeBatch(db);
-      const batchIds = duplicates.slice(i, i + BATCH_SIZE);
-
-      try {
-        batchIds.forEach(docId => {
-          const docRef = doc(db, 'whitelist_users', docId);
-          batch.delete(docRef);
-        });
-
-        await batch.commit();
-        removed += batchIds.length;
-
-        if (onProgress) {
-          onProgress(removed, duplicates.length);
-        }
-
-        if (i + BATCH_SIZE < duplicates.length) {
-          await delay(500);
-        }
-      } catch (error: any) {
-        errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`);
-      }
-    }
-
-    return {
-      totalScanned: snapshot.docs.length,
-      duplicatesFound: duplicates.length,
-      duplicatesRemoved: removed,
-      errors,
-    };
   },
 
   // ========== ADMIN USERS ==========
@@ -401,7 +324,7 @@ export const firebaseService = {
     }
   },
   
-  // ⭐ COMPLETELY REWRITTEN: Bulk import with proper duplicate prevention
+  // ⭐ IMPROVED: Bulk import with proper duplicate prevention
   async bulkImportWhitelistUsers(
     users: Array<{
       name: string;
@@ -479,7 +402,7 @@ export const firebaseService = {
       }
     }
 
-    // Step 2: Batch check existing users in database
+    // Step 2: Batch check existing users in database (30 at a time for 'in' query limit)
     const existingUserIds = new Set<string>();
     
     for (let i = 0; i < validUsers.length; i += 30) {

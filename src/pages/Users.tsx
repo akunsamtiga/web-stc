@@ -6,7 +6,7 @@ import {
   Plus, Search, Edit, Trash2, Download, Upload,
   Users as UsersIcon, User as UserIcon, Save, X, 
   FileText, AlertCircle, FileSpreadsheet, Loader, 
-  Code, AlertTriangle, Filter, Sparkles
+  Code, AlertTriangle, Filter
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -20,7 +20,6 @@ export const Users: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
-  const [showCleanupModal, setShowCleanupModal] = useState(false);
   const [editingUser, setEditingUser] = useState<WhitelistUser | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
@@ -176,30 +175,6 @@ Jane Smith,jane@example.com,user_002,device_002,true`;
         </div>
       </div>
 
-      {/* ⭐ NEW: Warning if too many users */}
-      {users.length > 10000 && (
-        <div className="card bg-yellow-50 border-yellow-200 p-3">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={18} />
-            <div>
-              <h3 className="font-bold text-yellow-900 mb-1 text-sm">High User Count Detected</h3>
-              <p className="text-xs text-yellow-800 mb-2">
-                You have {users.length.toLocaleString()} users. This might indicate duplicate data.
-              </p>
-              {isSuperAdmin && (
-                <button
-                  onClick={() => setShowCleanupModal(true)}
-                  className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                >
-                  <Sparkles size={14} />
-                  <span>Clean Up Duplicates</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-3 gap-3">
         <div className="card text-center p-3">
           <p className="text-xl sm:text-2xl font-bold text-slate-900">{stats.total}</p>
@@ -268,17 +243,6 @@ Jane Smith,jane@example.com,user_002,device_002,true`;
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
-
-            {/* ⭐ NEW: Cleanup button */}
-            {isSuperAdmin && (
-              <button 
-                onClick={() => setShowCleanupModal(true)} 
-                className="btn-secondary px-3 h-10 bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200"
-                title="Remove Duplicates"
-              >
-                <Sparkles size={18} />
-              </button>
-            )}
             
             <button 
               onClick={() => handleExport('csv')} 
@@ -398,13 +362,10 @@ Jane Smith,jane@example.com,user_002,device_002,true`;
           isSuperAdmin={isSuperAdmin}
         />
       )}
-
-      
     </div>
   );
 };
 
-// Keep existing UserModal, ImportModal, and DeleteAllModal components unchanged
 const UserModal: React.FC<{
   user: WhitelistUser | null;
   onClose: () => void;
@@ -433,8 +394,8 @@ const UserModal: React.FC<{
       }
       onSave();
       onClose();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to save user');
+    } catch (error) {
+      toast.error('Failed to save user');
     } finally {
       setLoading(false);
     }
@@ -487,11 +448,8 @@ const UserModal: React.FC<{
               className="input text-sm"
               placeholder="user_123"
               required
-              disabled={loading || !!user}
+              disabled={loading}
             />
-            {user && (
-              <p className="text-xs text-slate-500 mt-1">User ID cannot be changed</p>
-            )}
           </div>
 
           <div>
@@ -688,7 +646,7 @@ const ImportModal: React.FC<{
               <ul className="list-disc list-inside space-y-0.5 text-blue-800">
                 <li>Support CSV and JSON formats</li>
                 <li>Email is optional</li>
-                <li>Duplicates will be automatically skipped</li>
+                <li>Duplicates will be skipped</li>
               </ul>
             </div>
           </div>
