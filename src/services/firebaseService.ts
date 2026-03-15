@@ -41,7 +41,9 @@ export const firebaseService = {
       return;
     }
 
-    const adminsRef = collection(db, 'admin_users');
+    // ⭐ Gunakan Firebase UID sebagai document ID agar Firestore Rules
+    // bisa melakukan lookup isAdmin() via request.auth.uid
+    const adminRef = doc(db, 'admin_users', userId);
     const superAdminData = {
       email: email,
       name: 'Super Administrator',
@@ -53,7 +55,7 @@ export const firebaseService = {
       lastLogin: Date.now(),
     };
 
-    await addDoc(adminsRef, superAdminData);
+    await setDoc(adminRef, superAdminData);
     console.log('Super admin created successfully');
   },
 
@@ -173,7 +175,21 @@ export const firebaseService = {
   },
 
   async addAdminUser(admin: Omit<AdminUser, 'id'>, createdBy: string): Promise<string> {
-    const adminsRef = collection(db, 'admin_users');
+    if (!admin.userId?.trim()) {
+      throw new Error('User ID (Firebase UID) is required to create an admin');
+    }
+
+    // ⭐ Gunakan Firebase UID sebagai document ID agar Firestore Rules
+    // bisa melakukan lookup isAdmin() via request.auth.uid
+    const docId = admin.userId.trim();
+    const adminRef = doc(db, 'admin_users', docId);
+
+    // Cek apakah sudah ada admin dengan UID ini
+    const existingDoc = await getDoc(adminRef);
+    if (existingDoc.exists()) {
+      throw new Error(`Admin dengan UID "${docId}" sudah terdaftar`);
+    }
+
     const newAdmin = {
       ...admin,
       createdAt: Date.now(),
@@ -181,8 +197,9 @@ export const firebaseService = {
       isActive: true,
       lastLogin: 0,
     };
-    const docRef = await addDoc(adminsRef, newAdmin);
-    return docRef.id;
+
+    await setDoc(adminRef, newAdmin);
+    return docId;
   },
 
   async updateAdminUser(adminId: string, data: Partial<AdminUser>): Promise<void> {
