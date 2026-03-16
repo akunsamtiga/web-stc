@@ -374,75 +374,103 @@ const ModalUserRow = memo(({
   onToggleStatus: (u: WhitelistUser) => void;
   onFullEdit: (u: WhitelistUser) => void;
   onDelete: (id: string) => void;
-}) => (
-  <div className={`rounded-xl border ${isEditing ? 'border-blue-300 bg-blue-50/50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+}) => {
+  const initials = u.name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  return (
+  <div className={`rounded-xl border transition-all duration-150 ${
+    isEditing
+      ? 'border-blue-200 bg-blue-50/40 shadow-sm'
+      : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm'
+  }`}>
     {isEditing ? (
-      <div className="p-3 space-y-2">
-        <div className="flex items-center gap-2 mb-2">
-          <code className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600 truncate flex-1">{u.userId}</code>
-          <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+      /* ── inline edit ── */
+      <div className="p-4">
+        <div className="flex items-center gap-2.5 mb-3 pb-3 border-b border-blue-100">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-bold text-blue-700">{initials}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-700 truncate">{u.name}</p>
+            <code className="text-[10px] text-slate-400 truncate block">{u.userId}</code>
+          </div>
+          <span className={`badge ${u.isActive ? 'badge-green' : 'badge-slate'}`}>
             {u.isActive ? 'Active' : 'Inactive'}
           </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-3">
           {([
-            { label: 'Name *', field: 'name', type: 'text', ph: 'Full name' },
+            { label: 'Name', field: 'name', type: 'text', ph: 'Full name', req: true },
             { label: 'Email', field: 'email', type: 'email', ph: 'email@...' },
             { label: 'Device ID', field: 'deviceId', type: 'text', ph: 'device_...' },
-          ]).map(({ label, field, type, ph }) => (
+          ]).map(({ label, field, type, ph, req }) => (
             <div key={field}>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">{label}</label>
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                {label}{req && <span className="text-red-400 ml-0.5">*</span>}
+              </label>
               <input type={type} value={(inlineForm as any)[field]}
                 onChange={e => onChangeForm(field, e.target.value)}
-                className="input h-8 text-xs" placeholder={ph} disabled={isSaving} />
+                className="input text-xs" placeholder={ph} disabled={isSaving} />
             </div>
           ))}
         </div>
-        <div className="flex gap-2 pt-1">
-          <button onClick={onCancelEdit} disabled={isSaving}
-            className="flex-1 btn-secondary h-8 text-xs flex items-center justify-center gap-1">
-            <X size={13} />Cancel
+        <div className="flex gap-2">
+          <button onClick={onCancelEdit} disabled={isSaving} className="btn-secondary text-xs px-3">
+            <X size={12} /> Cancel
           </button>
-          <button onClick={() => onSaveEdit(u)} disabled={isSaving}
-            className="flex-1 btn-primary h-8 text-xs flex items-center justify-center gap-1">
+          <button onClick={() => onSaveEdit(u)} disabled={isSaving} className="btn-primary text-xs px-3 flex-1">
             {isSaving
-              ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
-              : <><Save size={13} />Save</>}
+              ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving…</>
+              : <><Save size={12} />Save changes</>}
           </button>
           <button onClick={() => { onCancelEdit(); onFullEdit(u); }}
-            className="px-3 h-8 btn-secondary text-xs flex items-center gap-1">
-            <Edit size={13} /><span className="hidden sm:inline">Full</span>
+            className="btn-secondary text-xs px-3" title="Open full edit">
+            <Edit size={12} /><span className="hidden sm:inline">Full edit</span>
           </button>
         </div>
       </div>
     ) : (
-      <div className="flex items-center gap-3 p-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${u.isActive ? 'bg-green-100' : 'bg-slate-100'}`}>
-          <UserIcon className={u.isActive ? 'text-green-600' : 'text-slate-400'} size={16} />
+      /* ── view row ── */
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        {/* Avatar */}
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+          u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+        }`}>
+          {initials}
         </div>
+
+        {/* Info */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-slate-900 truncate">{u.name}</p>
-          <p className="text-xs text-slate-500 truncate">{u.email || '—'}</p>
-          <code className="text-xs text-slate-400">{u.userId}</code>
+          <p className="text-sm font-semibold text-slate-900 truncate leading-none mb-0.5">{u.name}</p>
+          <p className="text-[11px] text-slate-400 truncate">{u.email || <span className="italic">no email</span>}</p>
         </div>
-        <button onClick={() => onToggleStatus(u)}
-          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex-shrink-0 hover:opacity-80 active:scale-95 ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+
+        {/* Status toggle */}
+        <button
+          onClick={() => onToggleStatus(u)}
+          title="Click to toggle status"
+          className={`badge flex-shrink-0 transition-opacity hover:opacity-70 active:scale-95 ${
+            u.isActive ? 'badge-green' : 'badge-slate'
+          }`}
+        >
           {u.isActive ? 'Active' : 'Inactive'}
         </button>
+
+        {/* Actions */}
         <div className="flex gap-1 flex-shrink-0">
-          <button onClick={() => onStartEdit(u)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-blue-100 hover:text-blue-600 text-slate-500">
-            <Edit size={14} />
+          <button onClick={() => onStartEdit(u)} title="Quick edit"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+            <Edit size={13} />
           </button>
-          <button onClick={() => onDelete(u.id)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-red-100 hover:text-red-600 text-slate-500">
-            <Trash2 size={14} />
+          <button onClick={() => onDelete(u.id)} title="Delete"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+            <Trash2 size={13} />
           </button>
         </div>
       </div>
     )}
   </div>
-));
+  );
+});
 
 const StatsQuickViewModal: React.FC<{
   type: 'total' | 'active' | 'inactive';
@@ -511,35 +539,76 @@ const StatsQuickViewModal: React.FC<{
   }, [inlineForm, onUserSaved, cancelInlineEdit]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 animate-fade-in">
-      <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl border border-slate-200 flex flex-col animate-slide-up sm:animate-scale-in max-h-[90vh]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">{title}</h2>
-            <p className={`text-sm font-semibold ${accentClass}`}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-scale-in max-h-[85vh]">
+
+        {/* ── Header ── */}
+        <div className="flex items-center gap-4 px-5 py-4 border-b border-slate-100 flex-shrink-0">
+          {/* Colored icon based on type */}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            type === 'active'   ? 'bg-emerald-100' :
+            type === 'inactive' ? 'bg-red-100'     : 'bg-blue-100'
+          }`}>
+            <UsersIcon className={
+              type === 'active'   ? 'text-emerald-600' :
+              type === 'inactive' ? 'text-red-500'     : 'text-blue-600'
+            } size={18} strokeWidth={2.5} />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-bold text-slate-900 leading-none">{title}</h2>
+            <p className={`text-xs font-semibold mt-0.5 ${accentClass}`}>
               {isPending ? 'Filtering…' : `${filtered.length} user${filtered.length !== 1 ? 's' : ''}`}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl"><X size={20} /></button>
+
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors flex-shrink-0"
+          >
+            <X size={16} />
+          </button>
         </div>
 
-        <div className="px-5 py-3 border-b border-slate-100 flex-shrink-0">
+        {/* ── Search ── */}
+        <div className="px-4 py-3 border-b border-slate-100 flex-shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name, email, or user ID..."
-              className="input pl-9 h-9 text-sm" autoFocus />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, email, or user ID…"
+              className="input pl-9 text-sm"
+              autoFocus
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="overflow-y-auto flex-1 px-3 py-2">
+        {/* ── List ── */}
+        <div className="overflow-y-auto flex-1 px-4 py-3">
           {filtered.length === 0 && !isPending ? (
-            <div className="text-center py-12">
-              <UsersIcon size={40} className="mx-auto text-slate-300 mb-3" />
-              <p className="text-sm text-slate-500">{search ? 'No results found' : 'No users in this category'}</p>
+            <div className="flex flex-col items-center justify-center py-14">
+              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-3">
+                <UsersIcon size={22} className="text-slate-400" />
+              </div>
+              <p className="text-sm font-semibold text-slate-700 mb-1">
+                {search ? 'No results found' : 'No users here'}
+              </p>
+              <p className="text-xs text-slate-400">
+                {search ? `No match for "${search}"` : 'This category is empty'}
+              </p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {pagedFiltered.map(u => (
                 <ModalUserRow key={u.id} u={u}
                   isEditing={inlineEditId === u.id}
@@ -555,20 +624,28 @@ const StatsQuickViewModal: React.FC<{
                 />
               ))}
               {modalHasMore && (
-                <button onClick={() => setModalPage(p => p + 1)}
-                  className="w-full text-center py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-xl transition-colors">
-                  Load more ({filtered.length - pagedFiltered.length} remaining)
+                <button
+                  onClick={() => setModalPage(p => p + 1)}
+                  className="w-full py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors mt-1"
+                >
+                  Load {Math.min(MODAL_PAGE_SIZE, filtered.length - pagedFiltered.length)} more
+                  <span className="text-slate-400 font-normal ml-1">
+                    ({filtered.length - pagedFiltered.length} remaining)
+                  </span>
                 </button>
               )}
             </div>
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-100 flex-shrink-0 flex items-center justify-between">
-          <p className="text-xs text-slate-500">
-            Klik badge <span className="font-semibold">Active/Inactive</span> untuk toggle langsung
+        {/* ── Footer ── */}
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 flex-shrink-0 bg-slate-50/60 rounded-b-2xl">
+          <p className="text-[11px] text-slate-400">
+            Tap <span className="font-semibold text-slate-500">Active/Inactive</span> badge to toggle status
           </p>
-          <button onClick={onClose} className="btn-secondary h-9 px-4 text-sm">Tutup</button>
+          <button onClick={onClose} className="btn-secondary text-xs px-4">
+            Close
+          </button>
         </div>
       </div>
     </div>
