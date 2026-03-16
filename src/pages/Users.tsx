@@ -46,17 +46,9 @@ const UserCard = memo(({
   const lastLoginStr = u.lastLogin > 0
     ? format(new Date(u.lastLogin), 'dd MMM, HH:mm')
     : 'Never';
-  const initials = u.name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
   return (
     <div className="flex items-center gap-3 px-3 sm:px-4 py-2.5 bg-white border border-slate-200 rounded-xl hover:border-slate-300 hover:shadow-sm transition-all duration-150 group">
-
-      {/* Avatar */}
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-        u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-      }`}>
-        {initials}
-      </div>
 
       {/* Row 1: name + email  |  Row 2: userId + lastLogin */}
       <div className="flex-1 min-w-0">
@@ -1094,6 +1086,7 @@ const UserModal: React.FC<{
   const [formData, setFormData] = useState({
     name: user?.name || '', email: user?.email || '',
     userId: user?.userId || '', deviceId: user?.deviceId || '',
+    isActive: user?.isActive ?? true,
   });
   const [loading, setLoading] = useState(false);
 
@@ -1118,35 +1111,159 @@ const UserModal: React.FC<{
   return (
     <ModalPortal>
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="card max-w-lg w-full animate-scale-in max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg sm:text-xl font-bold text-slate-900">{user ? 'Edit User' : 'Add User'}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg"><X size={20} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {([
-            { label: 'Name', field: 'name', type: 'text', ph: 'John Doe', req: true, dis: false },
-            { label: 'Email (optional)', field: 'email', type: 'email', ph: 'john@example.com', req: false, dis: false },
-            { label: 'User ID', field: 'userId', type: 'text', ph: 'user_123', req: true, dis: !!user },
-            { label: 'Device ID', field: 'deviceId', type: 'text', ph: 'device_abc123', req: true, dis: false },
-          ]).map(({ label, field, type, ph, req, dis }) => (
-            <div key={field}>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
-              <input type={type} value={(formData as any)[field]}
-                onChange={e => setFormData(f => ({ ...f, [field]: e.target.value }))}
-                className="input text-sm" placeholder={ph} required={req} disabled={loading || dis} />
-              {field === 'userId' && user && <p className="text-xs text-slate-500 mt-1">User ID cannot be changed</p>}
-            </div>
-          ))}
-          <div className="flex gap-2 pt-4">
-            <button type="button" onClick={onClose} className="flex-1 btn-secondary h-10 text-sm" disabled={loading}>Cancel</button>
-            <button type="submit" disabled={loading} className="flex-1 btn-primary flex items-center justify-center gap-2 h-10 text-sm">
-              {loading
-                ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Saving...</span></>
-                : <><Save size={18} /><span>{user ? 'Update' : 'Add'}</span></>}
-            </button>
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-scale-in max-h-[90vh]">
+
+        {/* ── Header ── */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 flex-shrink-0">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            user ? 'bg-blue-100' : 'bg-emerald-100'
+          }`}>
+            {user
+              ? <Edit size={15} className="text-blue-600" strokeWidth={2.5} />
+              : <Plus size={15} className="text-emerald-600" strokeWidth={2.5} />}
           </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-bold text-slate-900 leading-none">
+              {user ? 'Edit User' : 'Add New User'}
+            </h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {user ? `Editing ${user.name}` : 'Fill in the details below'}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* ── Body ── */}
+        <form id="user-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {/* Name */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              Full Name <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
+              className="input"
+              placeholder="John Doe"
+              required
+              disabled={loading}
+              autoFocus={!user}
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              Email <span className="text-slate-400 font-normal normal-case">(optional)</span>
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={e => setFormData(f => ({ ...f, email: e.target.value }))}
+              className="input"
+              placeholder="john@example.com"
+              disabled={loading}
+              inputMode="email"
+            />
+          </div>
+
+          {/* User ID + Device ID side by side on sm+ */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                User ID <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.userId}
+                onChange={e => setFormData(f => ({ ...f, userId: e.target.value }))}
+                className={`input font-mono text-sm ${user ? 'bg-slate-50 text-slate-500' : ''}`}
+                placeholder="user_123"
+                required
+                disabled={loading || !!user}
+              />
+              {user && (
+                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-slate-400 inline-block" />
+                  Cannot be changed
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                Device ID <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.deviceId}
+                onChange={e => setFormData(f => ({ ...f, deviceId: e.target.value }))}
+                className="input font-mono text-sm"
+                placeholder="device_abc"
+                required
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          {/* Status (edit mode only) */}
+          {user && (
+            <div className="pt-1">
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                Status
+              </label>
+              <div className="flex gap-2">
+                {[
+                  { val: true,  label: 'Active',   cls: 'border-emerald-300 bg-emerald-50 text-emerald-700' },
+                  { val: false, label: 'Inactive',  cls: 'border-slate-300 bg-slate-50 text-slate-600' },
+                ].map(opt => (
+                  <button
+                    key={String(opt.val)}
+                    type="button"
+                    onClick={() => setFormData(f => ({ ...f, isActive: opt.val }))}
+                    className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition-all ${
+                      (formData as any).isActive === opt.val
+                        ? opt.cls + ' shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </form>
+
+        {/* ── Footer ── */}
+        <div className="flex gap-2 px-5 py-4 border-t border-slate-100 flex-shrink-0 bg-slate-50/60 rounded-b-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="btn-secondary flex-1"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="user-form"
+            disabled={loading}
+            className="btn-primary flex-1"
+          >
+            {loading ? (
+              <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving…</>
+            ) : (
+              <><Save size={13} />{user ? 'Save changes' : 'Add user'}</>
+            )}
+          </button>
+        </div>
       </div>
     </div>
     </ModalPortal>
