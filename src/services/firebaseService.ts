@@ -3,7 +3,6 @@ import {
   doc,
   getDocs,
   getDoc,
-  addDoc,
   updateDoc,
   deleteDoc,
   query,
@@ -17,15 +16,12 @@ import type { WhitelistUser, AdminUser, RegistrationConfig } from '../types';
 
 const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || '';
 
-// Helper function to delay execution
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// ⭐ Generate safe document ID from userId
 const sanitizeDocId = (userId: string): string => {
   return userId.replace(/[^a-zA-Z0-9_-]/g, '_');
 };
 
 export const firebaseService = {
+
   // ========== SUPER ADMIN BOOTSTRAP ==========
   async bootstrapSuperAdmin(email: string, userId: string): Promise<void> {
     if (!SUPER_ADMIN_EMAIL) {
@@ -35,57 +31,86 @@ export const firebaseService = {
       throw new Error('Not authorized to bootstrap super admin');
     }
 
-    const existing = await this.getAdminByEmail(email);
-    if (existing) {
+    // ✅ OPTIMIZED: Direct doc lookup by UID instead of collection query
+    const adminRef = doc(db, 'admin_users', userId);
+    const existing = await getDoc(adminRef);
+    if (existing.exists()) {
       console.log('Super admin already exists');
       return;
     }
 
-    // ⭐ Gunakan Firebase UID sebagai document ID agar Firestore Rules
-    // bisa melakukan lookup isAdmin() via request.auth.uid
-    const adminRef = doc(db, 'admin_users', userId);
-    const superAdminData = {
-      email: email,
+    await setDoc(adminRef, {
+      email,
       name: 'Super Administrator',
-      userId: userId,
+      userId,
       role: 'super_admin' as const,
       isActive: true,
       createdAt: Date.now(),
       createdBy: 'system',
       lastLogin: Date.now(),
-    };
-
-    await setDoc(adminRef, superAdminData);
+    });
     console.log('Super admin created successfully');
+  },
+
+  // ========== ✅ NEW: Single lookup replacing 3–4 sequential queries ==========
+  // Since doc ID === Firebase UID, one getDoc() replaces:
+  //   checkIsAdmin() + checkIsSuperAdmin() + getAdminByEmail() in updateLastLogin()
+  async getAdminInfoByUID(uid: string): Promise<{
+    isAdmin: boolean;
+    isSuperAdmin: boolean;
+    adminData: AdminUser | null;
+  }> {
+    try {
+      const adminRef = doc(db, 'admin_users', uid);
+      const snapshot = await getDoc(adminRef);
+
+      if (!snapshot.exists()) {
+        return { isAdmin: false, isSuperAdmin: false, adminData: null };
+      }
+
+      const data = snapshot.data() as Omit<AdminUser, 'id'>;
+
+      if (!data.isActive) {
+        return { isAdmin: false, isSuperAdmin: false, adminData: null };
+      }
+
+      return {
+        isAdmin: true,
+        isSuperAdmin: data.role === 'super_admin',
+        adminData: { id: uid, ...data },
+      };
+    } catch {
+      return { isAdmin: false, isSuperAdmin: false, adminData: null };
+    }
+  },
+
+  // ✅ OPTIMIZED: Direct write by UID — no prior getAdminByEmail() query needed
+  async updateLastLoginByUID(uid: string): Promise<void> {
+    const adminRef = doc(db, 'admin_users', uid);
+    await updateDoc(adminRef, { lastLogin: Date.now() });
   },
 
   // ========== WHITELIST USERS ==========
   async getWhitelistUsers(adminEmail: string, isSuperAdmin: boolean): Promise<WhitelistUser[]> {
     const usersRef = collection(db, 'whitelist_users');
-    let q;
-    
-    if (isSuperAdmin) {
-      q = query(usersRef, orderBy('createdAt', 'desc'));
-    } else {
-      q = query(usersRef, where('addedBy', '==', adminEmail), orderBy('createdAt', 'desc'));
-    }
-    
+    const q = isSuperAdmin
+      ? query(usersRef, orderBy('createdAt', 'desc'))
+      : query(usersRef, where('addedBy', '==', adminEmail), orderBy('createdAt', 'desc'));
+
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WhitelistUser));
   },
 
-  // ⭐ IMPROVED: Use userId as document ID to prevent duplicates
-  async addWhitelistUser(user: Omit<WhitelistUser, 'id'>, addedBy: string): Promise<string> {
+  async addWhitelistUser(user: Omit<WhitelistUser, 'id'>, addedBy: string): Promise<WhitelistUser> {
     const docId = sanitizeDocId(user.userId);
     const userRef = doc(db, 'whitelist_users', docId);
-    
-    // Check if already exists
+
     const existingDoc = await getDoc(userRef);
     if (existingDoc.exists()) {
       throw new Error(`User with ID "${user.userId}" already exists`);
     }
 
-    const newUser = {
+    const newUser: Omit<WhitelistUser, 'id'> = {
       ...user,
       createdAt: Date.now(),
       addedAt: Date.now(),
@@ -93,9 +118,10 @@ export const firebaseService = {
       isActive: true,
       lastLogin: 0,
     };
-    
+
     await setDoc(userRef, newUser);
-    return docId;
+    // ✅ Return the full user object so caller can do optimistic update without re-fetch
+    return { id: docId, ...newUser };
   },
 
   async updateWhitelistUser(userId: string, data: Partial<WhitelistUser>): Promise<void> {
@@ -108,58 +134,35 @@ export const firebaseService = {
     await deleteDoc(userRef);
   },
 
-  // ========== DELETE ALL USERS (SUPER ADMIN ONLY) ==========
+  // ========== DELETE ALL USERS ==========
   async deleteAllWhitelistUsers(
     isSuperAdmin: boolean,
     onProgress?: (current: number, total: number) => void
-  ): Promise<{ 
-    success: number; 
-    failed: number; 
-    errors: string[];
-  }> {
-    if (!isSuperAdmin) {
-      throw new Error('Only super admin can delete all users');
-    }
+  ): Promise<{ success: number; failed: number; errors: string[] }> {
+    if (!isSuperAdmin) throw new Error('Only super admin can delete all users');
 
     const usersRef = collection(db, 'whitelist_users');
     const snapshot = await getDocs(usersRef);
-    
-    const BATCH_SIZE = 500; // Firestore batch limit
+
+    const BATCH_SIZE = 500;
     const total = snapshot.docs.length;
     let success = 0;
     let failed = 0;
     const errors: string[] = [];
 
-    // Process in batches
     for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
       const batch = writeBatch(db);
       const batchDocs = snapshot.docs.slice(i, i + BATCH_SIZE);
 
       try {
-        batchDocs.forEach(document => {
-          batch.delete(document.ref);
-        });
-
+        batchDocs.forEach(document => batch.delete(document.ref));
         await batch.commit();
         success += batchDocs.length;
-
-        // Report progress
-        if (onProgress) {
-          onProgress(success + failed, total);
-        }
-
-        // Small delay between batches
-        if (i + BATCH_SIZE < snapshot.docs.length) {
-          await delay(500);
-        }
+        onProgress?.(success + failed, total);
       } catch (error: any) {
         failed += batchDocs.length;
         errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`);
-        
-        // Report progress
-        if (onProgress) {
-          onProgress(success + failed, total);
-        }
+        onProgress?.(success + failed, total);
       }
     }
 
@@ -179,26 +182,21 @@ export const firebaseService = {
       throw new Error('User ID (Firebase UID) is required to create an admin');
     }
 
-    // ⭐ Gunakan Firebase UID sebagai document ID agar Firestore Rules
-    // bisa melakukan lookup isAdmin() via request.auth.uid
     const docId = admin.userId.trim();
     const adminRef = doc(db, 'admin_users', docId);
 
-    // Cek apakah sudah ada admin dengan UID ini
     const existingDoc = await getDoc(adminRef);
     if (existingDoc.exists()) {
       throw new Error(`Admin dengan UID "${docId}" sudah terdaftar`);
     }
 
-    const newAdmin = {
+    await setDoc(adminRef, {
       ...admin,
       createdAt: Date.now(),
       createdBy,
       isActive: true,
       lastLogin: 0,
-    };
-
-    await setDoc(adminRef, newAdmin);
+    });
     return docId;
   },
 
@@ -212,9 +210,9 @@ export const firebaseService = {
     await deleteDoc(adminRef);
   },
 
+  // Kept for backward compat (used in Admins.tsx indirectly), but prefer getAdminInfoByUID
   async checkIsAdmin(email: string): Promise<boolean> {
     if (email === SUPER_ADMIN_EMAIL) return true;
-    
     const adminsRef = collection(db, 'admin_users');
     const q = query(adminsRef, where('email', '==', email), where('isActive', '==', true));
     const snapshot = await getDocs(q);
@@ -223,10 +221,8 @@ export const firebaseService = {
 
   async checkIsSuperAdmin(email: string): Promise<boolean> {
     if (email === SUPER_ADMIN_EMAIL) return true;
-    
     const adminsRef = collection(db, 'admin_users');
-    const q = query(
-      adminsRef,
+    const q = query(adminsRef,
       where('email', '==', email),
       where('role', '==', 'super_admin'),
       where('isActive', '==', true)
@@ -239,12 +235,12 @@ export const firebaseService = {
     const adminsRef = collection(db, 'admin_users');
     const q = query(adminsRef, where('email', '==', email));
     const snapshot = await getDocs(q);
-    
     if (snapshot.empty) return null;
     const docSnap = snapshot.docs[0];
     return { id: docSnap.id, ...docSnap.data() } as AdminUser;
   },
 
+  // ✅ DEPRECATED: Use updateLastLoginByUID(uid) instead
   async updateLastLogin(email: string): Promise<void> {
     const admin = await this.getAdminByEmail(email);
     if (admin) {
@@ -256,7 +252,7 @@ export const firebaseService = {
   async getRegistrationConfig(): Promise<RegistrationConfig> {
     const configRef = doc(db, 'app_config', 'registration_config');
     const snapshot = await getDoc(configRef);
-    
+
     if (!snapshot.exists()) {
       const defaultConfig: RegistrationConfig = {
         id: 'registration_config',
@@ -271,19 +267,16 @@ export const firebaseService = {
       await setDoc(configRef, defaultConfig);
       return defaultConfig;
     }
-    
+
     return { id: snapshot.id, ...snapshot.data() } as RegistrationConfig;
   },
 
   async updateRegistrationConfig(config: Partial<RegistrationConfig>): Promise<void> {
     const configRef = doc(db, 'app_config', 'registration_config');
-    await updateDoc(configRef, {
-      ...config,
-      updatedAt: Date.now(),
-    });
+    await updateDoc(configRef, { ...config, updatedAt: Date.now() });
   },
 
-  // ========== EXPORT ==========
+  // ========== EXPORT (kept for bulk/server use) ==========
   async exportWhitelistAsJSON(): Promise<string> {
     const usersRef = collection(db, 'whitelist_users');
     const snapshot = await getDocs(usersRef);
@@ -294,27 +287,19 @@ export const firebaseService = {
   async exportWhitelistAsCSV(): Promise<string> {
     const usersRef = collection(db, 'whitelist_users');
     const snapshot = await getDocs(usersRef);
-    const users = snapshot.docs.map(doc => ({ 
-      id: doc.id, 
-      ...doc.data() 
-    } as WhitelistUser));
-    
+    const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WhitelistUser));
+
     const headers = ['ID', 'Name', 'Email', 'UserID', 'DeviceID', 'IsActive', 'CreatedAt', 'AddedBy', 'AddedAt'];
     const csv = [
       headers.join(','),
       ...users.map(user => [
-        user.id,
-        user.name || '',
-        user.email || '',
-        user.userId || '',
-        user.deviceId || '',
-        user.isActive ? 'true' : 'false',
+        user.id, user.name || '', user.email || '', user.userId || '',
+        user.deviceId || '', user.isActive ? 'true' : 'false',
         new Date(user.createdAt || 0).toISOString(),
-        user.addedBy || '',
-        new Date(user.addedAt || 0).toISOString(),
+        user.addedBy || '', new Date(user.addedAt || 0).toISOString(),
       ].join(','))
     ].join('\n');
-    
+
     return csv;
   },
 
@@ -323,87 +308,51 @@ export const firebaseService = {
     jsonData: string,
     addedBy: string,
     onProgress?: (current: number, total: number) => void
-  ): Promise<{
-    success: number;
-    failed: number;
-    errors: string[];
-    skipped: number;
-  }> {
+  ): Promise<{ success: number; failed: number; errors: string[]; skipped: number }> {
     try {
       const users = JSON.parse(jsonData);
-      if (!Array.isArray(users)) {
-        throw new Error('Invalid JSON format. Must be an array of user objects.');
-      }
-      
+      if (!Array.isArray(users)) throw new Error('Invalid JSON format. Must be an array.');
       return await this.bulkImportWhitelistUsers(users, addedBy, onProgress);
     } catch (error: any) {
       throw new Error(`JSON Import Error: ${error.message}`);
     }
   },
-  
-  // ⭐ IMPROVED: Bulk import with proper duplicate prevention
+
   async bulkImportWhitelistUsers(
-    users: Array<{
-      name: string;
-      email?: string;
-      userId: string;
-      deviceId: string;
-      isActive?: boolean;
-    }>,
+    users: Array<{ name: string; email?: string; userId: string; deviceId: string; isActive?: boolean }>,
     addedBy: string,
     onProgress?: (current: number, total: number) => void
-  ): Promise<{ 
-    success: number; 
-    failed: number; 
-    errors: string[];
-    skipped: number;
-  }> {
+  ): Promise<{ success: number; failed: number; errors: string[]; skipped: number }> {
+    // ✅ OPTIMIZED: Removed artificial delay(1000ms) between batches
+    // The 1s sleep per batch was adding huge latency (e.g. 1000 users = 20s of pure waiting)
     const BATCH_SIZE = 50;
-    const DELAY_MS = 1000;
-    
+
     let success = 0;
     let failed = 0;
     let skipped = 0;
     const errors: string[] = [];
 
-    // Step 1: Validate all users first
+    // Step 1: Validate
     const validUsers: Array<{
-      userId: string;
-      name: string;
-      email: string;
-      deviceId: string;
-      isActive: boolean;
-      rowNumber: number;
+      userId: string; name: string; email: string;
+      deviceId: string; isActive: boolean; rowNumber: number;
     }> = [];
-    
     const seenUserIds = new Set<string>();
 
     for (let i = 0; i < users.length; i++) {
       const user = users[i];
       const rowNum = i + 1;
-      
       try {
-        // Validation
-        if (!user.name?.trim()) {
-          throw new Error('Name is required');
-        }
-        if (user.email && !user.email.includes('@')) {
-          throw new Error('Valid email is required');
-        }
-        if (!user.userId?.trim()) {
-          throw new Error('User ID is required');
-        }
-        if (!user.deviceId?.trim()) {
-          throw new Error('Device ID is required');
-        }
+        if (!user.name?.trim()) throw new Error('Name is required');
+        if (user.email && !user.email.includes('@')) throw new Error('Valid email is required');
+        if (!user.userId?.trim()) throw new Error('User ID is required');
+        if (!user.deviceId?.trim()) throw new Error('Device ID is required');
 
-        // Check for duplicates within import file
         if (seenUserIds.has(user.userId)) {
           skipped++;
           errors.push(`Row ${rowNum}: Duplicate userId "${user.userId}" in import file`);
           continue;
         }
-
         seenUserIds.add(user.userId);
         validUsers.push({
           userId: user.userId.trim(),
@@ -419,100 +368,66 @@ export const firebaseService = {
       }
     }
 
-    // Step 2: Batch check existing users in database (30 at a time for 'in' query limit)
+    // Step 2: Batch check existing (30 at a time — Firestore 'in' limit)
     const existingUserIds = new Set<string>();
-    
     for (let i = 0; i < validUsers.length; i += 30) {
       const batch = validUsers.slice(i, i + 30);
-      const userIds = batch.map(u => u.userId);
-      
       try {
         const usersRef = collection(db, 'whitelist_users');
-        const q = query(usersRef, where('userId', 'in', userIds));
+        const q = query(usersRef, where('userId', 'in', batch.map(u => u.userId)));
         const snapshot = await getDocs(q);
-        
-        snapshot.docs.forEach(doc => {
-          const data = doc.data();
-          existingUserIds.add(data.userId);
-        });
+        snapshot.docs.forEach(doc => existingUserIds.add(doc.data().userId));
       } catch (error: any) {
         console.error('Error checking existing users:', error);
       }
     }
 
-    // Step 3: Filter out existing users
+    // Step 3: Filter duplicates
     const usersToImport = validUsers.filter(user => {
       if (existingUserIds.has(user.userId)) {
         skipped++;
-        errors.push(`Row ${user.rowNumber}: User "${user.userId}" already exists in database`);
+        errors.push(`Row ${user.rowNumber}: User "${user.userId}" already exists`);
         return false;
       }
       return true;
     });
 
-    // Step 4: Import in batches using document IDs based on userId
+    // Step 4: Import in batches (no artificial delay)
+    const now = Date.now();
     for (let i = 0; i < usersToImport.length; i += BATCH_SIZE) {
       const batch = writeBatch(db);
       const batchUsers = usersToImport.slice(i, i + BATCH_SIZE);
-      
+
       try {
         batchUsers.forEach(user => {
           const docId = sanitizeDocId(user.userId);
-          const userRef = doc(db, 'whitelist_users', docId);
-          
-          batch.set(userRef, {
-            name: user.name,
-            email: user.email,
-            userId: user.userId,
-            deviceId: user.deviceId,
-            isActive: user.isActive,
-            createdAt: Date.now(),
-            addedAt: Date.now(),
-            addedBy,
-            lastLogin: 0,
+          batch.set(doc(db, 'whitelist_users', docId), {
+            name: user.name, email: user.email, userId: user.userId,
+            deviceId: user.deviceId, isActive: user.isActive,
+            createdAt: now, addedAt: now, addedBy, lastLogin: 0,
           });
         });
 
         await batch.commit();
         success += batchUsers.length;
-        
-        if (onProgress) {
-          onProgress(success + failed + skipped, users.length);
-        }
+        onProgress?.(success + failed + skipped, users.length);
       } catch (error: any) {
-        // If batch fails, try individual imports
+        // Fallback: try individual writes
         for (const user of batchUsers) {
           try {
             const docId = sanitizeDocId(user.userId);
-            const userRef = doc(db, 'whitelist_users', docId);
-            
-            await setDoc(userRef, {
-              name: user.name,
-              email: user.email,
-              userId: user.userId,
-              deviceId: user.deviceId,
-              isActive: user.isActive,
-              createdAt: Date.now(),
-              addedAt: Date.now(),
-              addedBy,
-              lastLogin: 0,
+            await setDoc(doc(db, 'whitelist_users', docId), {
+              name: user.name, email: user.email, userId: user.userId,
+              deviceId: user.deviceId, isActive: user.isActive,
+              createdAt: now, addedAt: now, addedBy, lastLogin: 0,
             });
-            
             success++;
           } catch (individualError: any) {
             failed++;
             errors.push(`Row ${user.rowNumber}: ${individualError.message}`);
           }
-          
-          if (onProgress) {
-            onProgress(success + failed + skipped, users.length);
-          }
+          onProgress?.(success + failed + skipped, users.length);
         }
-      }
-      
-      // Delay between batches
-      if (i + BATCH_SIZE < usersToImport.length) {
-        await delay(DELAY_MS);
       }
     }
 

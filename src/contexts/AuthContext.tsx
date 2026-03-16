@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User } from 'firebase/auth';
-import { 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged 
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
 } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { firebaseService } from '../services/firebaseService';
@@ -27,28 +27,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      
-      if (user) {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+
+      if (firebaseUser) {
         try {
-          // Check if this is super admin email
           const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL;
-          if (SUPER_ADMIN_EMAIL && user.email && user.email === SUPER_ADMIN_EMAIL) {
-            // Try to bootstrap super admin if not exists
-            await firebaseService.bootstrapSuperAdmin(user.email, user.uid);
+
+          // Bootstrap super admin if needed (only runs when doc doesn't exist yet)
+          if (SUPER_ADMIN_EMAIL && firebaseUser.email && firebaseUser.email === SUPER_ADMIN_EMAIL) {
+            await firebaseService.bootstrapSuperAdmin(firebaseUser.email, firebaseUser.uid);
           }
-          
-          // Check admin status from Firestore
-          const adminCheck = await firebaseService.checkIsAdmin(user.email || '');
-          const superAdminCheck = await firebaseService.checkIsSuperAdmin(user.email || '');
-          
+
+          // ✅ OPTIMIZED: ONE direct getDoc() replaces 3–4 sequential Firestore queries:
+          //   - checkIsAdmin(email)       → collection scan
+          //   - checkIsSuperAdmin(email)  → collection scan
+          //   - getAdminByEmail(email)    → collection scan (inside updateLastLogin)
+          //   - updateAdminUser(id, ...)  → write
+          const { isAdmin: adminCheck, isSuperAdmin: superAdminCheck } =
+            await firebaseService.getAdminInfoByUID(firebaseUser.uid);
+
           setIsAdmin(adminCheck);
           setIsSuperAdmin(superAdminCheck);
-          
-          // Update last login
+
+          // ✅ Fire-and-forget — don't block page render waiting for this write
           if (adminCheck) {
-            await firebaseService.updateLastLogin(user.email || '');
+            firebaseService.updateLastLoginByUID(firebaseUser.uid).catch(console.error);
           }
         } catch (error) {
           console.error('Error checking admin status:', error);
@@ -59,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAdmin(false);
         setIsSuperAdmin(false);
       }
-      
+
       setLoading(false);
     });
 
@@ -69,32 +73,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     try {
       setLoading(true);
-      
-      // Sign in with Firebase Authentication
+
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      
-      // Check if super admin email
+
       const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL;
       if (SUPER_ADMIN_EMAIL && email === SUPER_ADMIN_EMAIL) {
-        // Bootstrap super admin if needed
         await firebaseService.bootstrapSuperAdmin(email, userCredential.user.uid);
         toast.success('Welcome, Super Admin!');
         return;
       }
-      
-      // Check if user is admin
-      const adminCheck = await firebaseService.checkIsAdmin(email);
-      
+
+      // ✅ Use UID-based lookup here too
+      const { isAdmin: adminCheck } = await firebaseService.getAdminInfoByUID(userCredential.user.uid);
+
       if (!adminCheck) {
         await signOut(auth);
         throw new Error('Access denied. You are not authorized as an admin.');
       }
-      
+
       toast.success('Login successful!');
     } catch (error: any) {
       console.error('Login error:', error);
-      
-      // Handle specific Firebase errors
+
       if (error.code === 'auth/user-not-found') {
         toast.error('No account found with this email');
       } else if (error.code === 'auth/wrong-password') {
@@ -108,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         toast.error(error.message || 'Login failed');
       }
-      
+
       throw error;
     } finally {
       setLoading(false);
@@ -126,14 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      loading, 
-      isAdmin, 
-      isSuperAdmin, 
-      login, 
-      logout 
-    }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, isSuperAdmin, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
