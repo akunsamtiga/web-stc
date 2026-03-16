@@ -7,7 +7,7 @@ import { firebaseService } from '../services/firebaseService';
 import type { WhitelistUser } from '../types';
 import {
   Plus, Search, Edit, Trash2, Download, Upload,
-  Users as UsersIcon, User as UserIcon, Save, X,
+  Users as UsersIcon, Save, X,
   FileSpreadsheet, Loader, Code, AlertTriangle, Filter,
   CheckCircle, XCircle, Play, Pause, Square,
   Clock, LogIn, UserPlus,
@@ -37,50 +37,62 @@ const UserCard = memo(({
   onDelete: (id: string) => void;
 }) => {
   const lastLoginStr = u.lastLogin > 0
-    ? format(new Date(u.lastLogin), 'MMM dd, HH:mm')
+    ? format(new Date(u.lastLogin), 'dd MMM, HH:mm')
     : 'Never';
+  const initials = u.name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <div className="card p-3 sm:p-4">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-            u.isActive ? 'bg-green-100' : 'bg-slate-200'
-          }`}>
-            <UserIcon className={u.isActive ? 'text-green-600' : 'text-slate-400'} size={18} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-slate-900 truncate text-sm">{u.name}</p>
-            <p className="text-xs text-slate-500 truncate">{u.email}</p>
-          </div>
+    <div className="flex items-center gap-3 px-3 sm:px-4 py-2.5 bg-white border border-slate-200 rounded-xl hover:border-slate-300 hover:shadow-sm transition-all duration-150 group">
+
+      {/* Avatar */}
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+        u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+      }`}>
+        {initials}
+      </div>
+
+      {/* Row 1: name + email  |  Row 2: userId + lastLogin */}
+      <div className="flex-1 min-w-0">
+        {/* Line 1 */}
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-semibold text-slate-900 truncate leading-none">{u.name}</p>
+          <p className="text-xs text-slate-400 truncate hidden sm:block leading-none">{u.email}</p>
         </div>
+        {/* Line 2 */}
+        <div className="flex items-center gap-2 mt-0.5 min-w-0">
+          <code className="text-[11px] text-slate-400 truncate leading-none">{u.userId}</code>
+          <span className="text-slate-300 hidden sm:inline text-[11px]">·</span>
+          <span className="text-[11px] text-slate-400 hidden sm:inline leading-none flex-shrink-0">
+            {u.lastLogin > 0 ? lastLoginStr : 'Never logged in'}
+          </span>
+        </div>
+      </div>
+
+      {/* Status toggle */}
+      <button
+        onClick={() => onToggle(u)}
+        className={`badge flex-shrink-0 transition-opacity hover:opacity-70 active:scale-95 ${
+          u.isActive ? 'badge-green' : 'badge-slate'
+        }`}
+      >
+        {u.isActive ? 'Active' : 'Inactive'}
+      </button>
+
+      {/* Actions */}
+      <div className="flex gap-1 flex-shrink-0">
         <button
-          onClick={() => onToggle(u)}
-          className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${
-            u.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
-          }`}
+          onClick={() => onEdit(u)}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+          title="Edit"
         >
-          {u.isActive ? 'Active' : 'Inactive'}
+          <Edit size={13} />
         </button>
-      </div>
-      <div className="space-y-2 text-xs mb-3">
-        <div className="flex items-center justify-between">
-          <span className="text-slate-500">User ID:</span>
-          <code className="bg-slate-100 px-2 py-0.5 rounded text-slate-700">{u.userId}</code>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-slate-500">Last Login:</span>
-          <span className="text-slate-700">{lastLoginStr}</span>
-        </div>
-      </div>
-      <div className="flex gap-2 pt-3 border-t border-slate-200">
-        <button onClick={() => onEdit(u)}
-          className="flex-1 btn-secondary text-sm h-9 flex items-center justify-center gap-1.5">
-          <Edit size={16} /><span>Edit</span>
-        </button>
-        <button onClick={() => onDelete(u.id)}
-          className="px-3 h-9 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors flex items-center justify-center">
-          <Trash2 size={16} />
+        <button
+          onClick={() => onDelete(u.id)}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+          title="Delete"
+        >
+          <Trash2 size={13} />
         </button>
       </div>
     </div>
@@ -307,7 +319,7 @@ export const Users: React.FC = () => {
       </div>
 
       {/* User list — each card is React.memo, skips re-render if user unchanged */}
-      <div className="space-y-3">
+      <div className="space-y-1.5">
         {pagedUsers.map(u => (
           <UserCard key={u.id} u={u}
             onToggle={handleToggleStatus}
