@@ -217,37 +217,36 @@ export const Users: React.FC = () => {
 
   return (
     <div className="space-y-4 animate-fade-in pb-6">
-      <div className="flex flex-col gap-3">
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">Users</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight mb-0.5">Users</h1>
+          <p className="text-xs text-slate-400">
             {isPending ? 'Filtering…' : `${filteredUsers.length} of ${users.length} users`}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowImportModal(true)}
-            className="flex-1 sm:flex-initial btn-secondary flex items-center justify-center gap-2 text-sm h-10">
-            <Upload size={18} /><span>Import</span>
+        <div className="flex gap-2 flex-shrink-0">
+          <button onClick={() => setShowImportModal(true)} className="btn-secondary">
+            <Upload size={15} /><span className="hidden sm:inline">Import</span>
           </button>
-          <button onClick={() => setShowAddModal(true)}
-            className="flex-1 sm:flex-initial btn-primary flex items-center justify-center gap-2 text-sm h-10">
-            <Plus size={18} /><span>Add</span>
+          <button onClick={() => setShowAddModal(true)} className="btn-primary">
+            <Plus size={15} /><span>Add</span>
           </button>
         </div>
       </div>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Stats cards — 3 equal cols, numbers scale with screen */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {([
-          { key: 'total' as const, val: stats.total, label: 'Total', hint: 'Lihat semua →', hov: 'hover:border-blue-300 hover:bg-blue-50', hc: 'text-blue-500', nc: 'text-slate-900' },
-          { key: 'active' as const, val: stats.active, label: 'Active', hint: 'Lihat →', hov: 'hover:border-green-300 hover:bg-green-50', hc: 'text-green-500', nc: 'text-green-600' },
-          { key: 'inactive' as const, val: stats.inactive, label: 'Inactive', hint: 'Lihat →', hov: 'hover:border-red-300 hover:bg-red-50', hc: 'text-red-500', nc: 'text-red-600' },
+          { key: 'total' as const, val: stats.total, label: 'Total', hint: 'View all', hov: 'hover:border-blue-300 hover:bg-blue-50', hc: 'text-blue-500', nc: 'text-slate-900' },
+          { key: 'active' as const, val: stats.active, label: 'Active', hint: 'View', hov: 'hover:border-green-300 hover:bg-green-50', hc: 'text-green-500', nc: 'text-green-600' },
+          { key: 'inactive' as const, val: stats.inactive, label: 'Inactive', hint: 'View', hov: 'hover:border-red-300 hover:bg-red-50', hc: 'text-red-500', nc: 'text-red-600' },
         ]).map(s => (
           <button key={s.key} onClick={() => setStatsModal(s.key)}
-            className={`card text-center p-3 ${s.hov} transition-all active:scale-[0.98] cursor-pointer`}>
-            <p className={`text-xl sm:text-2xl font-bold ${s.nc}`}>{s.val}</p>
-            <p className="text-xs text-slate-500 mt-1">{s.label}</p>
-            <p className={`text-xs mt-1 font-medium ${s.hc}`}>{s.hint}</p>
+            className={`card text-center p-2.5 sm:p-3 ${s.hov} transition-all active:scale-[0.98] cursor-pointer min-h-[72px]`}>
+            <p className={`text-lg sm:text-2xl font-bold tabular-nums ${s.nc}`}>{s.val}</p>
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">{s.label}</p>
+            <p className={`text-[10px] sm:text-xs mt-0.5 font-medium ${s.hc} hidden sm:block`}>{s.hint} →</p>
           </button>
         ))}
       </div>
@@ -256,9 +255,9 @@ export const Users: React.FC = () => {
       <div className="card p-3 sm:p-4">
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
             <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search users..." className="input pl-10 h-10 text-sm" />
+              placeholder="Search users…" className="input pl-9" />
           </div>
           <div className="flex gap-2">
             <div className="relative sm:hidden">
@@ -343,7 +342,7 @@ export const Users: React.FC = () => {
           onClose={() => setShowDeleteAllModal(false)} onSuccess={loadUsers} isSuperAdmin={isSuperAdmin} />
       )}
       {statsModal && (
-        <StatsQuickViewModal type={statsModal} users={users}
+        <StatsQuickViewModal type={statsModal as 'total' | 'active' | 'inactive'} users={users}
           onClose={() => setStatsModal(null)}
           onToggleStatus={handleToggleStatus}
           onEditUser={u => { setStatsModal(null); setEditingUser(u); }}

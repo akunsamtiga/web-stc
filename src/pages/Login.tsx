@@ -4,10 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { Shield, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const [email, setEmail]           = useState('');
-  const [password, setPassword]     = useState('');
-  const [showPwd, setShowPwd]       = useState(false);
-  const [loading, setLoading]       = useState(false);
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd]   = useState(false);
+  const [loading, setLoading]   = useState(false);
   const { login } = useAuth();
   const navigate  = useNavigate();
 
@@ -17,16 +17,13 @@ export const Login: React.FC = () => {
     try {
       await login(email, password);
       navigate('/');
-    } catch {
-      // toast handled in AuthContext
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* toast handled in AuthContext */ }
+    finally { setLoading(false); }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      {/* dot-grid background */}
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:p-6">
+      {/* dot-grid */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -38,7 +35,7 @@ export const Login: React.FC = () => {
 
       <div className="w-full max-w-sm relative z-10">
         {/* Brand */}
-        <div className="flex flex-col items-center mb-7 animate-fade-in">
+        <div className="flex flex-col items-center mb-6 sm:mb-7 animate-fade-in">
           <div className="w-11 h-11 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/25 mb-4">
             <Shield className="text-white" size={20} strokeWidth={2.5} />
           </div>
@@ -46,8 +43,8 @@ export const Login: React.FC = () => {
           <p className="text-xs text-slate-400 mt-0.5">Admin Dashboard</p>
         </div>
 
-        {/* Form card */}
-        <div className="card p-6 animate-scale-in">
+        {/* Card */}
+        <div className="card p-5 sm:p-6 animate-scale-in">
           <h2 className="text-sm font-semibold text-slate-800 mb-5">Sign in to your account</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -66,6 +63,7 @@ export const Login: React.FC = () => {
                   required
                   disabled={loading}
                   autoComplete="email"
+                  inputMode="email"
                 />
               </div>
             </div>
@@ -80,7 +78,7 @@ export const Login: React.FC = () => {
                   type={showPwd ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="input pl-9 pr-9"
+                  className="input pl-9 pr-10"
                   placeholder="••••••••"
                   required
                   disabled={loading}
@@ -91,23 +89,17 @@ export const Login: React.FC = () => {
                   onClick={() => setShowPwd(v => !v)}
                   disabled={loading}
                   tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  aria-label={showPwd ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
                 >
                   {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full h-10 mt-1"
-            >
+            <button type="submit" disabled={loading} className="btn-primary w-full mt-1">
               {loading ? (
-                <>
-                  <Loader2 className="animate-spin" size={14} />
-                  Signing in…
-                </>
+                <><Loader2 className="animate-spin" size={14} />Signing in…</>
               ) : (
                 'Sign In'
               )}

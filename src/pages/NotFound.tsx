@@ -13,7 +13,7 @@ export const NotFound: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:p-6">
       {/* dot-grid */}
       <div
         className="fixed inset-0 pointer-events-none"
@@ -24,29 +24,28 @@ export const NotFound: React.FC = () => {
         }}
       />
 
-      <div className="w-full max-w-lg text-center relative z-10 animate-fade-in">
+      <div className="w-full max-w-md text-center relative z-10 animate-fade-in">
 
         {/* Icon */}
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl border border-slate-200 shadow-sm mb-6">
-          <Search size={28} className="text-slate-400" />
+        <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-white rounded-2xl border border-slate-200 shadow-sm mb-5 sm:mb-6">
+          <Search size={24} className="text-slate-400" />
         </div>
 
-        {/* 404 */}
-        <p className="text-7xl font-black text-slate-900 tracking-tight leading-none mb-3">
-          404
-        </p>
-        <h1 className="text-lg font-bold text-slate-900 mb-2">Page not found</h1>
-        <p className="text-sm text-slate-500 mb-8 max-w-xs mx-auto leading-relaxed">
+        <p className="text-6xl sm:text-7xl font-black text-slate-900 tracking-tight leading-none mb-3">404</p>
+        <h1 className="text-base sm:text-lg font-bold text-slate-900 mb-2">Page not found</h1>
+        <p className="text-sm text-slate-500 mb-6 sm:mb-8 max-w-xs mx-auto leading-relaxed">
           The page you are looking for doesn't exist or has been moved.
         </p>
 
         {/* Quick nav */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-8 max-w-sm mx-auto sm:max-w-none">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6 sm:mb-8">
           {links.map(({ path, icon: Icon, label }) => (
             <button
               key={path}
               onClick={() => navigate(path)}
-              className="flex flex-col items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-150 text-slate-600 hover:text-blue-700"
+              className="flex flex-col items-center gap-2 p-3 sm:p-4 bg-white rounded-xl border border-slate-200
+                         hover:border-blue-300 hover:bg-blue-50 transition-all duration-150
+                         text-slate-600 hover:text-blue-700 min-h-[72px]"
             >
               <Icon size={16} strokeWidth={2} />
               <span className="text-xs font-semibold">{label}</span>
@@ -55,18 +54,16 @@ export const NotFound: React.FC = () => {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 justify-center">
+        <div className="flex flex-col sm:flex-row gap-2 justify-center">
           <button onClick={() => navigate(-1)} className="btn-secondary">
-            <ArrowLeft size={14} />
-            Go back
+            <ArrowLeft size={14} /> Go back
           </button>
           <button onClick={() => navigate('/')} className="btn-primary">
-            <Home size={14} />
-            Home
+            <Home size={14} /> Home
           </button>
         </div>
 
-        <p className="mt-8 text-[11px] text-slate-400">
+        <p className="mt-6 text-[11px] text-slate-400">
           Error code: <span className="font-mono font-bold text-slate-500">404</span>
         </p>
       </div>

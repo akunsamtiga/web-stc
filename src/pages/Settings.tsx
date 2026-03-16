@@ -2,10 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { firebaseService } from '../services/firebaseService';
 import type { RegistrationConfig } from '../types';
-import {
-  Link2, MessageCircle, Save, Info,
-  CheckCircle, ExternalLink, RotateCcw,
-} from 'lucide-react';
+import { Link2, MessageCircle, Save, Info, CheckCircle, ExternalLink, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const Settings: React.FC = () => {
@@ -18,8 +15,7 @@ export const Settings: React.FC = () => {
   useEffect(() => { loadConfig(); }, []);
 
   const hasChanges = config
-    ? form.registrationUrl !== config.registrationUrl ||
-      form.whatsappHelpUrl !== config.whatsappHelpUrl
+    ? form.registrationUrl !== config.registrationUrl || form.whatsappHelpUrl !== config.whatsappHelpUrl
     : false;
 
   const loadConfig = async () => {
@@ -28,7 +24,7 @@ export const Settings: React.FC = () => {
       setConfig(data);
       setForm({ registrationUrl: data.registrationUrl, whatsappHelpUrl: data.whatsappHelpUrl });
     } catch { toast.error('Failed to load settings'); }
-    finally  { setLoading(false); }
+    finally { setLoading(false); }
   };
 
   const handleSave = async () => {
@@ -39,7 +35,7 @@ export const Settings: React.FC = () => {
       toast.success('Settings saved');
       loadConfig();
     } catch { toast.error('Failed to save settings'); }
-    finally  { setSaving(false); }
+    finally { setSaving(false); }
   };
 
   const handleReset = () => {
@@ -61,8 +57,7 @@ export const Settings: React.FC = () => {
       label: 'Registration URL',
       desc:  'Default link for new user registration',
       ph:    'https://stockity.id/registered?a=…',
-      bg:    'bg-blue-50',
-      ic:    'text-blue-600',
+      bg:    'bg-blue-50', ic: 'text-blue-600',
     },
     {
       key:   'whatsappHelpUrl' as const,
@@ -70,13 +65,12 @@ export const Settings: React.FC = () => {
       label: 'WhatsApp Support',
       desc:  'Contact link for user support',
       ph:    'https://wa.me/62…',
-      bg:    'bg-emerald-50',
-      ic:    'text-emerald-600',
+      bg:    'bg-emerald-50', ic: 'text-emerald-600',
     },
   ];
 
   return (
-    <div className="space-y-5 animate-fade-in pb-6 max-w-2xl">
+    <div className="space-y-4 sm:space-y-5 animate-fade-in pb-6 max-w-2xl">
 
       {/* Header */}
       <div>
@@ -84,7 +78,7 @@ export const Settings: React.FC = () => {
         <p className="text-xs text-slate-400">Manage application configuration</p>
       </div>
 
-      {/* Read-only notice */}
+      {/* Read-only banner */}
       {!isSuperAdmin && (
         <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
           <Info size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
@@ -97,9 +91,9 @@ export const Settings: React.FC = () => {
 
       {/* URL fields */}
       {fields.map(({ key, icon: Icon, label, desc, ph, bg, ic }) => (
-        <div key={key} className="card p-5">
+        <div key={key} className="card p-4 sm:p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center`}>
+            <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
               <Icon className={ic} size={14} strokeWidth={2.5} />
             </div>
             <div>
@@ -117,16 +111,21 @@ export const Settings: React.FC = () => {
                 type="url"
                 value={form[key]}
                 onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                className="input pr-9"
+                className="input pr-10"
                 placeholder={ph}
                 disabled={!isSuperAdmin}
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
               {form[key] && (
                 <a
                   href={form[key]}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors p-1"
+                  aria-label="Open URL"
                 >
                   <ExternalLink size={13} />
                 </a>
@@ -134,7 +133,7 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {/* Current active */}
+          {/* Active URL */}
           {config && config[key] && (
             <div className="flex items-start gap-2 mt-3 px-3 py-2.5 bg-emerald-50 rounded-lg border border-emerald-100">
               <CheckCircle size={12} className="text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -149,36 +148,24 @@ export const Settings: React.FC = () => {
 
       {/* Save / Reset */}
       {isSuperAdmin && (
-        <div className="flex gap-2">
-          <button
-            onClick={handleReset}
-            disabled={!hasChanges || saving}
-            className="btn-secondary"
-          >
-            <RotateCcw size={13} />
-            Reset
+        <div className="flex flex-col-reverse sm:flex-row gap-2">
+          <button onClick={handleReset} disabled={!hasChanges || saving} className="btn-secondary">
+            <RotateCcw size={13} /> Reset
           </button>
-          <button
-            onClick={handleSave}
-            disabled={!hasChanges || saving}
-            className="btn-primary"
-          >
-            {saving ? (
-              <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving…</>
-            ) : (
-              <><Save size={13} />Save Changes</>
-            )}
+          <button onClick={handleSave} disabled={!hasChanges || saving} className="btn-primary sm:flex-1">
+            {saving
+              ? <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving…</>
+              : <><Save size={13} />Save Changes</>}
           </button>
         </div>
       )}
 
-      {/* Info notice */}
+      {/* Info */}
       <div className="flex items-start gap-3 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl">
         <Info size={13} className="text-blue-500 flex-shrink-0 mt-0.5" />
-        <div className="text-[11px] text-slate-600 space-y-0.5">
+        <div className="text-[11px] text-slate-600">
           <p className="font-semibold text-blue-900 mb-1">Important</p>
-          <p>Changes take effect immediately after saving.</p>
-          <p>Ensure all URLs are valid before saving. Use the external link icon to test each URL.</p>
+          <p>Changes take effect immediately after saving. Ensure all URLs are valid before saving.</p>
         </div>
       </div>
     </div>
