@@ -69,15 +69,15 @@
   .badge-yellow { @apply badge bg-amber-50 text-amber-700 border border-amber-100; }
   .badge-slate  { @apply badge bg-slate-100 text-slate-600 border border-slate-200; }
 
-  /* Bottom-sheet modal pattern */
+  /* Centered modal — always renders to viewport center via createPortal */
   .modal-overlay {
     @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-50
-           flex items-end sm:items-center justify-center
-           p-0 sm:p-4 animate-fade-in;
+           flex items-center justify-center
+           p-4 animate-fade-in;
   }
   .modal-panel {
     @apply bg-white w-full
-           rounded-t-2xl sm:rounded-2xl
+           rounded-2xl
            shadow-2xl border border-slate-200
            flex flex-col
            animate-slide-up sm:animate-scale-in

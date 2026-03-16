@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { firebaseService } from '../services/firebaseService';
 import type { AdminUser } from '../types';
@@ -186,8 +187,8 @@ const AdminModal: React.FC<{
     finally { setLoading(false); }
   };
 
-  return (
-    /* bottom-sheet on mobile, centered on sm+ */
+  return createPortal(
+    /* centered modal — always on viewport */
     <div className="modal-overlay">
       <div className="modal-panel sm:max-w-md">
         {/* Header */}
@@ -247,6 +248,7 @@ const AdminModal: React.FC<{
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

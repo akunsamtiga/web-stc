@@ -2,6 +2,7 @@ import React, {
   useEffect, useState, useMemo, useCallback, useRef,
   useTransition, memo
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { firebaseService } from '../services/firebaseService';
 import type { WhitelistUser } from '../types';
@@ -24,6 +25,12 @@ function useDebounce<T>(value: T, delay: number): T {
   }, [value, delay]);
   return dv;
 }
+
+// ─── Modal portal — always renders to document.body ──────────
+// Guarantees fixed positioning is relative to the viewport,
+// not any transformed/overflow parent in the React tree.
+const ModalPortal: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+  createPortal(children, document.body);
 
 // ─── UserCard — memoized ──────────────────────────────────────
 // Critical: without memo, every card re-renders on every search
@@ -650,6 +657,7 @@ const StatsQuickViewModal: React.FC<{
     : 0;
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-scale-in max-h-[85vh]">
 
@@ -888,6 +896,7 @@ const StatsQuickViewModal: React.FC<{
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 
@@ -931,6 +940,7 @@ const RecentUsersModal: React.FC<{
   const addedThisWeek = users.filter(u => u.createdAt > weekAgo).length;
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-scale-in max-h-[85vh]">
 
@@ -1068,6 +1078,7 @@ const RecentUsersModal: React.FC<{
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 
@@ -1105,6 +1116,7 @@ const UserModal: React.FC<{
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="card max-w-lg w-full animate-scale-in max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
@@ -1137,6 +1149,7 @@ const UserModal: React.FC<{
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 
@@ -1186,6 +1199,7 @@ const ImportModal: React.FC<{
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="card max-w-lg w-full animate-scale-in max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
@@ -1265,6 +1279,7 @@ const ImportModal: React.FC<{
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 };
 
@@ -1299,6 +1314,7 @@ const DeleteAllModal: React.FC<{
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="card max-w-lg w-full animate-scale-in max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
@@ -1367,5 +1383,6 @@ const DeleteAllModal: React.FC<{
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 };
