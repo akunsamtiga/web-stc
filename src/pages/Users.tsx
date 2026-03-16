@@ -5,7 +5,7 @@ import type { WhitelistUser } from '../types';
 import {
   Plus, Search, Edit, Trash2, Download, Upload,
   Users as UsersIcon, User as UserIcon, Save, X,
-  FileText, AlertCircle, FileSpreadsheet, Loader,
+  FileSpreadsheet, Loader,
   Code, AlertTriangle, Filter
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -435,7 +435,6 @@ const StatsQuickViewModal: React.FC<{
 
   const title = type === 'total' ? 'All Users' : type === 'active' ? 'Active Users' : 'Inactive Users';
   const accentClass = type === 'active' ? 'text-green-600' : type === 'inactive' ? 'text-red-600' : 'text-blue-600';
-  const badgeBg = type === 'active' ? 'bg-green-100 text-green-700' : type === 'inactive' ? 'bg-slate-200 text-slate-600' : 'bg-blue-100 text-blue-700';
 
   const filtered = useMemo(() => {
     let list = type === 'active'
