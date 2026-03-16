@@ -3,8 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { firebaseService } from '../services/firebaseService';
 import type { AdminUser } from '../types';
 import {
-  Plus, Edit, Trash2, Shield, UserCog, Save, X,
-  AlertTriangle, Crown, Info,
+  Plus, Edit, Trash2, UserCog, Save, X,
+  Crown, Info,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
