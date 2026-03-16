@@ -36,11 +36,11 @@ export const Users: React.FC = () => {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
-  // ✅ Reset to page 1 whenever search or filter changes
-  useEffect(() => { setPage(1); }, [debouncedSearch, filter]);
-
   // ✅ Debounced search — 300ms delay, no re-filter on every keystroke
   const debouncedSearch = useDebounce(searchQuery, 300);
+
+  // ✅ Reset to page 1 whenever search or filter changes
+  useEffect(() => { setPage(1); }, [debouncedSearch, filter]);
 
   useEffect(() => {
     loadUsers();
