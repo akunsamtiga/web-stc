@@ -8,7 +8,8 @@ import type { WhitelistUser } from '../types';
 import {
   Plus, Search, Edit, Trash2, Download, Upload,
   Users as UsersIcon, User as UserIcon, Save, X,
-  FileSpreadsheet, Loader, Code, AlertTriangle, Filter
+  FileSpreadsheet, Loader, Code, AlertTriangle, Filter,
+  CheckCircle, XCircle, Play, Pause, Square,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -489,13 +490,20 @@ const StatsQuickViewModal: React.FC<{
   const [isPending, startTransition] = useTransition();
   const MODAL_PAGE_SIZE = 30;
 
+  // ── Bulk operation state ──────────────────────────────────
+  type BulkStatus = 'idle' | 'running' | 'paused' | 'stopped' | 'done';
+  const [bulkStatus, setBulkStatus]   = useState<BulkStatus>('idle');
+  const [bulkTarget, setBulkTarget]   = useState<boolean>(true); // true = activate, false = deactivate
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, failed: 0 });
+  const pausedRef  = useRef(false);
+  const stoppedRef = useRef(false);
+
   const debouncedSearch = useDebounce(search, 250);
   useEffect(() => { startTransition(() => setModalPage(1)); }, [debouncedSearch]);
 
   const title = type === 'total' ? 'All Users' : type === 'active' ? 'Active Users' : 'Inactive Users';
   const accentClass = type === 'active' ? 'text-green-600' : type === 'inactive' ? 'text-red-600' : 'text-blue-600';
 
-  // Pre-lowercase once
   const baseList = useMemo(() => {
     const src = type === 'active' ? users.filter(u => u.isActive)
       : type === 'inactive' ? users.filter(u => !u.isActive)
@@ -511,6 +519,8 @@ const StatsQuickViewModal: React.FC<{
 
   const pagedFiltered = useMemo(() => filtered.slice(0, modalPage * MODAL_PAGE_SIZE), [filtered, modalPage]);
   const modalHasMore = pagedFiltered.length < filtered.length;
+
+
 
   const startInlineEdit = useCallback((u: WhitelistUser) => {
     setInlineEditId(u.id);
@@ -537,6 +547,81 @@ const StatsQuickViewModal: React.FC<{
     } catch { toast.error('Failed to update'); }
     finally { setSavingId(null); }
   }, [inlineForm, onUserSaved, cancelInlineEdit]);
+
+  // ── Bulk operation runner ─────────────────────────────────
+  const startBulk = useCallback(async (activate: boolean) => {
+    const targets = filtered.filter(u => u.isActive !== activate);
+    if (targets.length === 0) {
+      toast(`All users are already ${activate ? 'active' : 'inactive'}`);
+      return;
+    }
+
+    setBulkTarget(activate);
+    setBulkStatus('running');
+    setBulkProgress({ done: 0, total: targets.length, failed: 0 });
+    pausedRef.current  = false;
+    stoppedRef.current = false;
+
+    let done = 0, failed = 0;
+
+    for (const u of targets) {
+      // Check stop
+      if (stoppedRef.current) {
+        setBulkStatus('stopped');
+        toast(`Stopped — ${done} user${done !== 1 ? 's' : ''} updated`);
+        return;
+      }
+
+      // Wait while paused
+      while (pausedRef.current) {
+        await new Promise(r => setTimeout(r, 200));
+        if (stoppedRef.current) {
+          setBulkStatus('stopped');
+          toast(`Stopped — ${done} user${done !== 1 ? 's' : ''} updated`);
+          return;
+        }
+      }
+
+      try {
+        await firebaseService.updateWhitelistUser(u.id, { isActive: activate });
+        // Optimistic update in parent
+        onToggleStatus(u);
+        done++;
+      } catch {
+        failed++;
+      }
+
+      setBulkProgress({ done, total: targets.length, failed });
+    }
+
+    setBulkStatus('done');
+    toast.success(`${done} user${done !== 1 ? 's' : ''} ${activate ? 'activated' : 'deactivated'}${failed > 0 ? `, ${failed} failed` : ''}`);
+  }, [filtered, onToggleStatus]);
+
+  const handlePauseResume = useCallback(() => {
+    if (bulkStatus === 'paused') {
+      pausedRef.current = false;
+      setBulkStatus('running');
+    } else {
+      pausedRef.current = true;
+      setBulkStatus('paused');
+    }
+  }, [bulkStatus]);
+
+  const handleStop = useCallback(() => {
+    stoppedRef.current = true;
+    pausedRef.current  = false;
+  }, []);
+
+  const resetBulk = useCallback(() => {
+    setBulkStatus('idle');
+    setBulkProgress({ done: 0, total: 0, failed: 0 });
+  }, []);
+
+  const isBulkRunning = bulkStatus === 'running' || bulkStatus === 'paused';
+  const progressPct   = bulkProgress.total > 0
+    ? Math.round((bulkProgress.done / bulkProgress.total) * 100)
+    : 0;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
@@ -581,8 +666,9 @@ const StatsQuickViewModal: React.FC<{
               placeholder="Search by name, email, or user ID…"
               className="input pl-9 text-sm"
               autoFocus
+              disabled={isBulkRunning}
             />
-            {search && (
+            {search && !isBulkRunning && (
               <button
                 onClick={() => setSearch('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
@@ -591,6 +677,133 @@ const StatsQuickViewModal: React.FC<{
               </button>
             )}
           </div>
+        </div>
+
+        {/* ── Bulk action toolbar ── */}
+        <div className="px-4 py-2.5 border-b border-slate-100 flex-shrink-0 bg-slate-50/50">
+          {bulkStatus === 'idle' ? (
+            /* Idle: show activate all / deactivate all buttons */
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-500 mr-1 font-medium hidden sm:block">Bulk action:</span>
+              <button
+                onClick={() => startBulk(true)}
+                disabled={filtered.filter(u => !u.isActive).length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
+                           bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg
+                           transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <CheckCircle size={12} />
+                Activate all
+                {filtered.filter(u => !u.isActive).length > 0 && (
+                  <span className="bg-emerald-500/40 px-1.5 py-0.5 rounded text-[10px]">
+                    {filtered.filter(u => !u.isActive).length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => startBulk(false)}
+                disabled={filtered.filter(u => u.isActive).length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
+                           bg-slate-600 hover:bg-slate-700 text-white rounded-lg
+                           transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <XCircle size={12} />
+                Deactivate all
+                {filtered.filter(u => u.isActive).length > 0 && (
+                  <span className="bg-slate-500/40 px-1.5 py-0.5 rounded text-[10px]">
+                    {filtered.filter(u => u.isActive).length}
+                  </span>
+                )}
+              </button>
+            </div>
+          ) : bulkStatus === 'done' || bulkStatus === 'stopped' ? (
+            /* Done / stopped: show result summary */
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  bulkStatus === 'done' ? 'bg-emerald-100' : 'bg-slate-200'
+                }`}>
+                  {bulkStatus === 'done'
+                    ? <CheckCircle size={12} className="text-emerald-600" />
+                    : <X size={11} className="text-slate-500" />}
+                </div>
+                <p className="text-xs font-semibold text-slate-700">
+                  {bulkStatus === 'done' ? 'Completed' : 'Stopped'} —{' '}
+                  <span className={bulkTarget ? 'text-emerald-600' : 'text-slate-600'}>
+                    {bulkProgress.done} {bulkTarget ? 'activated' : 'deactivated'}
+                  </span>
+                  {bulkProgress.failed > 0 && (
+                    <span className="text-red-500 ml-1">, {bulkProgress.failed} failed</span>
+                  )}
+                </p>
+              </div>
+              <button onClick={resetBulk}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+                New action
+              </button>
+            </div>
+          ) : (
+            /* Running / paused: progress UI */
+            <div className="space-y-2">
+              {/* Top row: label + count + controls */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-2 min-w-0">
+                  {/* Spinning dot when running */}
+                  {bulkStatus === 'running' ? (
+                    <span className="w-3 h-3 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin flex-shrink-0" />
+                  ) : (
+                    <span className="w-3 h-3 rounded-full bg-amber-400 flex-shrink-0" />
+                  )}
+                  <p className="text-xs font-semibold text-slate-700 truncate">
+                    {bulkStatus === 'paused' ? 'Paused — ' : ''}
+                    {bulkTarget ? 'Activating' : 'Deactivating'}{' '}
+                    <span className={bulkTarget ? 'text-emerald-600' : 'text-slate-600'}>
+                      {bulkProgress.done}/{bulkProgress.total}
+                    </span>
+                    {bulkProgress.failed > 0 && (
+                      <span className="text-red-500 ml-1">· {bulkProgress.failed} failed</span>
+                    )}
+                  </p>
+                  <span className="text-[10px] text-slate-400 font-semibold tabular-nums flex-shrink-0">
+                    {progressPct}%
+                  </span>
+                </div>
+
+                {/* Pause/Resume + Stop */}
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={handlePauseResume}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                      bulkStatus === 'paused'
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                    }`}
+                  >
+                    {bulkStatus === 'paused'
+                      ? <><Play size={11} />Resume</>
+                      : <><Pause size={11} />Pause</>}
+                  </button>
+                  <button
+                    onClick={handleStop}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold
+                               bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-colors"
+                  >
+                    <Square size={10} />Stop
+                  </button>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    bulkStatus === 'paused' ? 'bg-amber-400' : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── List ── */}
