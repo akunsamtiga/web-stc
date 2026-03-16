@@ -1,58 +1,67 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Shield, Mail, Lock, Loader, Eye, EyeOff } from 'lucide-react';
+import { Shield, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail]           = useState('');
+  const [password, setPassword]     = useState('');
+  const [showPwd, setShowPwd]       = useState(false);
+  const [loading, setLoading]       = useState(false);
   const { login } = useAuth();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
     try {
       await login(email, password);
       navigate('/');
-    } catch (error) {
-      console.error(error);
+    } catch {
+      // toast handled in AuthContext
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8 animate-fade-in">
-          <div className="inline-block mb-6">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-lg">
-              <Shield className="text-white" size={32} />
-            </div>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      {/* dot-grid background */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle, rgb(148 163 184 / 0.2) 1px, transparent 0)',
+          backgroundSize: '24px 24px',
+        }}
+      />
+
+      <div className="w-full max-w-sm relative z-10">
+        {/* Brand */}
+        <div className="flex flex-col items-center mb-7 animate-fade-in">
+          <div className="w-11 h-11 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/25 mb-4">
+            <Shield className="text-white" size={20} strokeWidth={2.5} />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
-            STC AutoTrade Admin
-          </h1>
-          <p className="text-sm sm:text-base text-slate-600">Sign in to access dashboard</p>
+          <h1 className="text-lg font-bold text-slate-900 tracking-tight">STC AutoTrade</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Admin Dashboard</p>
         </div>
 
-        <div className="card animate-scale-in">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Form card */}
+        <div className="card p-6 animate-scale-in">
+          <h2 className="text-sm font-semibold text-slate-800 mb-5">Sign in to your account</h2>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Email Address
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input pl-11 h-12 text-sm sm:text-base"
+                  onChange={e => setEmail(e.target.value)}
+                  className="input pl-9"
                   placeholder="admin@example.com"
                   required
                   disabled={loading}
@@ -62,16 +71,16 @@ export const Login: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPwd ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input pl-11 pr-11 h-12 text-sm sm:text-base"
+                  onChange={e => setPassword(e.target.value)}
+                  className="input pl-9 pr-9"
                   placeholder="••••••••"
                   required
                   disabled={loading}
@@ -79,12 +88,12 @@ export const Login: React.FC = () => {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  onClick={() => setShowPwd(v => !v)}
                   disabled={loading}
                   tabIndex={-1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
             </div>
@@ -92,26 +101,23 @@ export const Login: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full h-12 text-sm sm:text-base font-semibold flex items-center justify-center gap-2"
+              className="btn-primary w-full h-10 mt-1"
             >
               {loading ? (
                 <>
-                  <Loader className="animate-spin" size={20} />
-                  <span>Signing in...</span>
+                  <Loader2 className="animate-spin" size={14} />
+                  Signing in…
                 </>
               ) : (
-                <span>Sign In</span>
+                'Sign In'
               )}
             </button>
           </form>
         </div>
 
-        <div className="text-center mt-8 space-y-2">
-          <p className="text-xs sm:text-sm text-slate-500">
-            Powered by <span className="text-blue-600 font-semibold">STC AutoTrade</span>
-          </p>
-          <p className="text-xs text-slate-400">© 2026 All rights reserved</p>
-        </div>
+        <p className="text-center text-[11px] text-slate-400 mt-5">
+          &copy; {new Date().getFullYear()} STC AutoTrade. All rights reserved.
+        </p>
       </div>
     </div>
   );

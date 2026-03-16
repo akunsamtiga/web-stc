@@ -821,7 +821,7 @@ const DeleteAllModal: React.FC<{
               <div className="flex items-start gap-2">
                 <AlertTriangle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
                 <div className="text-xs text-red-800">
-                  <p className="font-bold mb-1">⚠️ Delete ALL {totalUsers} users — IRREVERSIBLE</p>
+                  <p className="font-bold mb-1">Delete ALL {totalUsers} users — IRREVERSIBLE</p>
                   <p>Export your data first if needed.</p>
                 </div>
               </div>
