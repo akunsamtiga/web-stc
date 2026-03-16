@@ -10,6 +10,7 @@ import {
   Users as UsersIcon, User as UserIcon, Save, X,
   FileSpreadsheet, Loader, Code, AlertTriangle, Filter,
   CheckCircle, XCircle, Play, Pause, Square,
+  Clock, LogIn, UserPlus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -97,7 +98,7 @@ export const Users: React.FC = () => {
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [editingUser, setEditingUser] = useState<WhitelistUser | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [statsModal, setStatsModal] = useState<'total' | 'active' | 'inactive' | null>(null);
+  const [statsModal, setStatsModal] = useState<'total' | 'active' | 'inactive' | 'recent' | null>(null);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
@@ -130,11 +131,16 @@ export const Users: React.FC = () => {
   const pagedUsers = useMemo(() => filteredUsers.slice(0, page * PAGE_SIZE), [filteredUsers, page]);
   const hasMore = pagedUsers.length < filteredUsers.length;
 
-  const stats = useMemo(() => ({
-    total: users.length,
-    active: users.filter(u => u.isActive).length,
-    inactive: users.filter(u => !u.isActive).length,
-  }), [users]);
+  const stats = useMemo(() => {
+    const DAY7 = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return {
+      total:        users.length,
+      active:       users.filter(u => u.isActive).length,
+      inactive:     users.filter(u => !u.isActive).length,
+      recentLogin:  users.filter(u => u.lastLogin > DAY7).length,
+      recentAdded:  users.filter(u => u.createdAt > DAY7).length,
+    };
+  }, [users]);
 
   const loadUsers = async () => {
     if (!user?.email) return;
@@ -236,12 +242,13 @@ export const Users: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats cards — 3 equal cols, numbers scale with screen */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      {/* Stats cards — 2×2 on mobile, 4-col on sm+ */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {([
-          { key: 'total' as const, val: stats.total, label: 'Total', hint: 'View all', hov: 'hover:border-blue-300 hover:bg-blue-50', hc: 'text-blue-500', nc: 'text-slate-900' },
-          { key: 'active' as const, val: stats.active, label: 'Active', hint: 'View', hov: 'hover:border-green-300 hover:bg-green-50', hc: 'text-green-500', nc: 'text-green-600' },
-          { key: 'inactive' as const, val: stats.inactive, label: 'Inactive', hint: 'View', hov: 'hover:border-red-300 hover:bg-red-50', hc: 'text-red-500', nc: 'text-red-600' },
+          { key: 'total'    as const, val: stats.total,                     label: 'Total',   hint: 'View all', hov: 'hover:border-blue-300 hover:bg-blue-50',   hc: 'text-blue-500',  nc: 'text-slate-900' },
+          { key: 'active'   as const, val: stats.active,                    label: 'Active',  hint: 'View',     hov: 'hover:border-green-300 hover:bg-green-50', hc: 'text-green-500', nc: 'text-green-600' },
+          { key: 'inactive' as const, val: stats.inactive,                  label: 'Inactive',hint: 'View',     hov: 'hover:border-red-300 hover:bg-red-50',     hc: 'text-red-500',   nc: 'text-red-600' },
+          { key: 'recent'   as const, val: stats.recentLogin + stats.recentAdded, label: 'Recent', hint: 'View', hov: 'hover:border-violet-300 hover:bg-violet-50', hc: 'text-violet-500', nc: 'text-violet-600' },
         ]).map(s => (
           <button key={s.key} onClick={() => setStatsModal(s.key)}
             className={`card text-center p-2.5 sm:p-3 ${s.hov} transition-all active:scale-[0.98] cursor-pointer min-h-[72px]`}>
@@ -342,13 +349,20 @@ export const Users: React.FC = () => {
         <DeleteAllModal totalUsers={users.length}
           onClose={() => setShowDeleteAllModal(false)} onSuccess={loadUsers} isSuperAdmin={isSuperAdmin} />
       )}
-      {statsModal && (
+      {statsModal && statsModal !== 'recent' && (
         <StatsQuickViewModal type={statsModal as 'total' | 'active' | 'inactive'} users={users}
           onClose={() => setStatsModal(null)}
           onToggleStatus={handleToggleStatus}
           onEditUser={u => { setStatsModal(null); setEditingUser(u); }}
           onDeleteUser={handleDelete}
           onUserSaved={handleUserSaved} />
+      )}
+      {statsModal === 'recent' && (
+        <RecentUsersModal
+          users={users}
+          onClose={() => setStatsModal(null)}
+          onEditUser={u => { setStatsModal(null); setEditingUser(u); }}
+        />
       )}
     </div>
   );
@@ -859,6 +873,186 @@ const StatsQuickViewModal: React.FC<{
           <button onClick={onClose} className="btn-secondary text-xs px-4">
             Close
           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// RECENT USERS MODAL — tabbed: Recent Login / Recently Added
+// ============================================================
+const RecentUsersModal: React.FC<{
+  users: WhitelistUser[];
+  onClose: () => void;
+  onEditUser: (u: WhitelistUser) => void;
+}> = ({ users, onClose, onEditUser }) => {
+  const [tab, setTab] = useState<'login' | 'added'>('login');
+
+  const DAY_MS  = 24 * 60 * 60 * 1000;
+  const WEEK_MS = 7 * DAY_MS;
+
+  const recentLogin = useMemo(() =>
+    [...users]
+      .filter(u => u.lastLogin > 0)
+      .sort((a, b) => b.lastLogin - a.lastLogin)
+      .slice(0, 50),
+  [users]);
+
+  const recentAdded = useMemo(() =>
+    [...users]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 50),
+  [users]);
+
+  const list = tab === 'login' ? recentLogin : recentAdded;
+
+  const timeLabel = (ts: number) => {
+    const diff = Date.now() - ts;
+    if (diff < DAY_MS)   return 'Today';
+    if (diff < WEEK_MS)  return `${Math.floor(diff / DAY_MS)}d ago`;
+    return format(new Date(ts), 'dd MMM, HH:mm');
+  };
+
+  const weekAgo = Date.now() - WEEK_MS;
+  const loginThisWeek = users.filter(u => u.lastLogin > weekAgo).length;
+  const addedThisWeek = users.filter(u => u.createdAt > weekAgo).length;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-scale-in max-h-[85vh]">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 flex-shrink-0">
+          <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Clock size={18} className="text-violet-600" strokeWidth={2.5} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-bold text-slate-900 leading-none">Recent Users</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Last 7 days activity</p>
+          </div>
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex px-4 pt-3 pb-0 gap-2 flex-shrink-0">
+          {([
+            { key: 'login' as const, label: 'Recent Login',  count: loginThisWeek, icon: LogIn },
+            { key: 'added' as const, label: 'Recently Added', count: addedThisWeek, icon: UserPlus },
+          ]).map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-all border-b-2 ${
+                tab === t.key
+                  ? 'bg-white border-violet-500 text-violet-700 shadow-sm'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <t.icon size={13} />
+              {t.label}
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                tab === t.key ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {t.count}
+              </span>
+            </button>
+          ))}
+          {/* Tab underline track */}
+          <div className="flex-1 border-b-2 border-slate-100" />
+        </div>
+
+        {/* List */}
+        <div className="overflow-y-auto flex-1 px-4 py-3">
+          {list.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14">
+              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-3">
+                <Clock size={22} className="text-slate-400" />
+              </div>
+              <p className="text-sm font-semibold text-slate-700 mb-1">No activity yet</p>
+              <p className="text-xs text-slate-400">
+                {tab === 'login' ? 'No users have logged in recently' : 'No users have been added recently'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {list.map((u, i) => {
+                const ts        = tab === 'login' ? u.lastLogin : u.createdAt;
+                const diff      = Date.now() - ts;
+                const isToday   = diff < DAY_MS;
+                const isThisWeek = diff < WEEK_MS;
+                const initials  = u.name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+                return (
+                  <div key={u.id}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors group">
+                    {/* Rank */}
+                    <span className="w-5 text-[10px] font-bold text-slate-300 text-right tabular-nums flex-shrink-0">
+                      {i + 1}
+                    </span>
+
+                    {/* Avatar */}
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                      isToday
+                        ? 'bg-violet-100 text-violet-700'
+                        : isThisWeek
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {initials}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate leading-none">{u.name}</p>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{u.email || '—'}</p>
+                    </div>
+
+                    {/* Status badge */}
+                    <span className={`badge flex-shrink-0 ${u.isActive ? 'badge-green' : 'badge-slate'}`}>
+                      {u.isActive ? 'Active' : 'Inactive'}
+                    </span>
+
+                    {/* Timestamp */}
+                    <div className="text-right flex-shrink-0 min-w-[56px]">
+                      <div className="flex items-center justify-end gap-1">
+                        {isToday && <span className="w-1.5 h-1.5 rounded-full bg-violet-500 flex-shrink-0" />}
+                        <span className={`text-[11px] font-semibold ${
+                          isToday ? 'text-violet-600' : isThisWeek ? 'text-blue-600' : 'text-slate-500'
+                        }`}>
+                          {timeLabel(ts)}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 tabular-nums">{format(new Date(ts), 'HH:mm')}</p>
+                    </div>
+
+                    {/* Edit (shown on hover) */}
+                    <button
+                      onClick={() => onEditUser(u)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Edit"
+                    >
+                      <Edit size={13} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 flex-shrink-0 bg-slate-50/60 rounded-b-2xl">
+          <p className="text-[11px] text-slate-400">
+            Showing top 50 · sorted by{' '}
+            <span className="font-semibold text-slate-500">
+              {tab === 'login' ? 'last login' : 'date added'}
+            </span>
+          </p>
+          <button onClick={onClose} className="btn-secondary text-xs px-4">Close</button>
         </div>
       </div>
     </div>
