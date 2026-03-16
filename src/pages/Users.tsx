@@ -33,6 +33,11 @@ export const Users: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [statsModal, setStatsModal] = useState<'total' | 'active' | 'inactive' | null>(null);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+
+  // ✅ Reset to page 1 whenever search or filter changes
+  useEffect(() => { setPage(1); }, [debouncedSearch, filter]);
 
   // ✅ Debounced search — 300ms delay, no re-filter on every keystroke
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -41,9 +46,17 @@ export const Users: React.FC = () => {
     loadUsers();
   }, [user, isSuperAdmin]);
 
+  // ✅ Pre-lowercase once so search loop doesn't call .toLowerCase() on every keystroke
+  const normalizedUsers = useMemo(() => users.map(u => ({
+    ...u,
+    _name: u.name.toLowerCase(),
+    _email: u.email.toLowerCase(),
+    _userId: u.userId.toLowerCase(),
+  })), [users]);
+
   // ✅ useMemo: filtered list only recomputes when data, filter, or debounced search changes
   const filteredUsers = useMemo(() => {
-    let filtered = users;
+    let filtered = normalizedUsers;
 
     if (filter === 'active') filtered = filtered.filter(u => u.isActive);
     else if (filter === 'inactive') filtered = filtered.filter(u => !u.isActive);
@@ -51,14 +64,22 @@ export const Users: React.FC = () => {
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase();
       filtered = filtered.filter(u =>
-        u.name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.userId.toLowerCase().includes(q)
+        u._name.includes(q) ||
+        u._email.includes(q) ||
+        u._userId.includes(q)
       );
     }
 
     return filtered;
-  }, [users, filter, debouncedSearch]);
+  }, [normalizedUsers, filter, debouncedSearch]);
+
+  // ✅ Only render PAGE_SIZE items — hugely reduces DOM nodes
+  const pagedUsers = useMemo(
+    () => filteredUsers.slice(0, page * PAGE_SIZE),
+    [filteredUsers, page]
+  );
+
+  const hasMore = pagedUsers.length < filteredUsers.length;
 
   // ✅ useMemo: stats computed once, not on every render
   const stats = useMemo(() => ({
@@ -311,7 +332,7 @@ export const Users: React.FC = () => {
       </div>
 
       <div className="space-y-3">
-        {filteredUsers.map((u) => (
+        {pagedUsers.map((u) => (
           <div key={u.id} className="card p-3 sm:p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -372,6 +393,23 @@ export const Users: React.FC = () => {
           <UsersIcon size={48} className="mx-auto text-slate-300 mb-3" />
           <p className="text-sm text-slate-500 font-medium">No users found</p>
         </div>
+      )}
+
+      {hasMore && (
+        <div className="text-center pt-2">
+          <button
+            onClick={() => setPage(p => p + 1)}
+            className="btn-secondary text-sm h-10 px-6"
+          >
+            Load more ({filteredUsers.length - pagedUsers.length} remaining)
+          </button>
+        </div>
+      )}
+
+      {!hasMore && filteredUsers.length > PAGE_SIZE && (
+        <p className="text-center text-xs text-slate-400 pt-2">
+          Showing all {filteredUsers.length} users
+        </p>
       )}
 
       {(showAddModal || editingUser) && (
